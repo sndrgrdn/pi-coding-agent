@@ -166,8 +166,8 @@ function colorize(text: string, rarity: keyof typeof RARITY_COLOR): string {
 // --- Timing ---
 
 const MIN_INTERVAL_MS = 2500;
-const MAX_INTERVAL_MS = 6000;
-const STREAK_STEP_MS = 1800;
+const MAX_INTERVAL_MS = 30_000;
+const STREAK_STEP_MS = 2800;
 
 function randomInterval(): number {
   return MIN_INTERVAL_MS + Math.random() * (MAX_INTERVAL_MS - MIN_INTERVAL_MS);
