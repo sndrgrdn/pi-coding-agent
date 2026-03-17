@@ -1,0 +1,12 @@
+{
+  "lastChangelogVersion": "0.58.4",
+  "defaultProvider": "anthropic",
+  "defaultModel": "claude-opus-4-6",
+  "defaultThinkingLevel": "xhigh",
+  "hideThinkingBlock": true,
+  "theme": "kanagawa-wave",
+  "enabledModels": [
+    "openai-codex/gpt-5.4",
+    "anthropic/claude-opus-4-6"
+  ]
+}
