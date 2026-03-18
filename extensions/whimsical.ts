@@ -136,25 +136,12 @@ const easterEggs = [
   "Bribing the compiler...",
 ];
 
-const streaks: string[][] = [
-  ["Warming up...", "Getting cozy...", "Fully toasty!"],
-  ["Inhaling...", "Holding...", "Exhaling..."],
-  ["Hmm...", "Hmmm...", "Hmmmmmm...", "Aha!"],
-  ["Thinking...", "Overthinking...", "Underthinking...", "Just right."],
-  ["One...", "Two...", "Skip a few...", "Ninety-nine..."],
-  ["Ready...", "Set...", "Wait for it..."],
-  ["Simmering...", "Bubbling...", "Boiling over!"],
-  ["Winding up...", "And...", "Here we go!"],
-  ["Loading...", "Still loading...", "Almost...", "Just kidding."],
-  ["Stretching...", "Limbering up...", "Cracking knuckles..."],
-];
-
 // --- Rarity colors (ANSI) ---
 // Inner ANSI codes override the Loader's outer "muted" color
 const RARITY_COLOR = {
-  common: "",                    // inherit muted
-  uncommon: "\x1b[38;5;114m",   // green
-  rare: "\x1b[38;5;69m",        // blue
+  common: "",
+  uncommon: "",
+  rare: "",
   legendary: "\x1b[38;5;220m",  // gold
 };
 
@@ -166,15 +153,18 @@ function colorize(text: string, rarity: keyof typeof RARITY_COLOR): string {
 // --- Timing ---
 
 const MIN_INTERVAL_MS = 2500;
-const MAX_INTERVAL_MS = 30_000;
-const STREAK_STEP_MS = 2800;
+const MAX_INTERVAL_MS = 10_000;
 
 function randomInterval(): number {
   return MIN_INTERVAL_MS + Math.random() * (MAX_INTERVAL_MS - MIN_INTERVAL_MS);
 }
 
 function pickFrom<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)];
+  const value = arr[Math.floor(Math.random() * arr.length)];
+  if (value === undefined) {
+    throw new Error("Cannot pick from an empty array");
+  }
+  return value;
 }
 
 type Rarity = keyof typeof RARITY_COLOR;
@@ -207,25 +197,8 @@ function scheduleNext() {
   const rarity = rollRarity();
   const pool = rarity === "legendary" ? easterEggs : messages;
 
-  // 20% chance of a streak, otherwise instant
-  if (Math.random() < 0.20) {
-    playStreak(pickFrom(streaks), rarity);
-  } else {
-    ctx.ui.setWorkingMessage(colorize(pickFrom(pool), rarity));
-    schedule(scheduleNext, randomInterval());
-  }
-}
-
-// --- Streak ---
-
-function playStreak(steps: string[], rarity: Rarity, index = 0) {
-  if (!ctx) return;
-  ctx.ui.setWorkingMessage(colorize(steps[index], rarity));
-  if (index < steps.length - 1) {
-    schedule(() => playStreak(steps, rarity, index + 1), STREAK_STEP_MS);
-  } else {
-    schedule(scheduleNext, randomInterval());
-  }
+  ctx.ui.setWorkingMessage(colorize(pickFrom(pool), rarity));
+  schedule(scheduleNext, randomInterval());
 }
 
 // --- Extension ---
