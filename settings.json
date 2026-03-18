@@ -8,5 +8,8 @@
   "enabledModels": [
     "openai-codex/gpt-5.4",
     "anthropic/claude-opus-4-6"
+  ],
+  "packages": [
+    "https://github.com/davebcn87/pi-autoresearch"
   ]
 }
