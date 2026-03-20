@@ -1,5 +1,5 @@
 import type { Theme } from "@mariozechner/pi-coding-agent";
-import { Editor, type EditorTheme, Key, matchesKey, truncateToWidth, type TUI, visibleWidth } from "@mariozechner/pi-tui";
+import { Editor, type EditorTheme, Key, matchesKey, truncateToWidth, type TUI, visibleWidth, wrapTextWithAnsi } from "@mariozechner/pi-tui";
 import { normalizeAnswerSelection, replaceAnswerSelection } from "./helpers.ts";
 import {
   OTHER_OPTION_DISPLAY_LABEL,
@@ -289,9 +289,24 @@ class QuestionPromptComponent {
       })
       .join(" ");
 
+    // Wrap text, prefixing continuation lines with `prefix`.
+    const wrap = (text: string, prefix = "") => {
+      const wrapWidth = Math.max(20, contentWidth - prefix.length);
+      for (const line of wrapTextWithAnsi(text, wrapWidth)) {
+        lines.push(prefix + line);
+      }
+    };
+    // Wrap text, but only indent continuation lines (first line is already prefixed).
+    const wrapHanging = (text: string, hangIndent: string) => {
+      const wrapped = wrapTextWithAnsi(text, contentWidth);
+      for (let i = 0; i < wrapped.length; i++) {
+        lines.push(i === 0 ? wrapped[i] : hangIndent + wrapped[i]);
+      }
+    };
+
     add(progress);
     add();
-    add(this.theme.bold(question.question));
+    wrap(this.theme.bold(question.question));
     add();
 
     // multi: "▶ ✔ " = 4 chars indent; single: "▶ 1. " = 5 chars indent
@@ -300,15 +315,17 @@ class QuestionPromptComponent {
     question.options.forEach((option: NormalizedQuestion["options"][number], index: number) => {
       const selected = this.getSelected(this.currentQuestionIndex).has(option.label);
       const active = this.currentOptionIndex === index;
-      add(this.renderOptionLine(option.label, index, active, selected, multiple));
-      if (option.description) add(`${indent}${this.theme.fg("muted", option.description)}`);
+      wrapHanging(this.renderOptionLine(option.label, index, active, selected, multiple), indent);
+      if (option.description) {
+        wrap(this.theme.fg("muted", option.description), indent);
+      }
     });
 
     const otherIndex = question.options.length;
     const otherSelected = this.isOtherSelected(this.currentQuestionIndex);
     const otherActive = this.currentOptionIndex === otherIndex;
     const otherDisplayLabel = this.theme.italic(OTHER_OPTION_DISPLAY_LABEL);
-    add(this.renderOptionLine(otherDisplayLabel, otherIndex, otherActive, otherSelected, multiple));
+    wrapHanging(this.renderOptionLine(otherDisplayLabel, otherIndex, otherActive, otherSelected, multiple), indent);
 
     const customValue = this.customValues.get(this.currentQuestionIndex)?.trim() ?? "";
     if (otherSelected || this.editingOther) {
