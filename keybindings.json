@@ -1,4 +1,4 @@
 {
-  "cycleThinkingLevel": "ctrl+t",
-  "toggleThinking": []
+  "app.thinking.cycle": "ctrl+t",
+  "app.thinking.toggle": []
 }
