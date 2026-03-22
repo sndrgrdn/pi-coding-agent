@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "context7": {
+      "url": "https://mcp.context7.com/mcp"
+    },
+    "grep": {
+      "url": "https://mcp.grep.app"
+    },
+    "opensrc": {
+      "command": "npx",
+      "args": ["-y", "opensrc-mcp"]
+    }
+  }
+}

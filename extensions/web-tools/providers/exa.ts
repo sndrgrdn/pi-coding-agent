@@ -16,8 +16,11 @@ type ExaEventPayload = {
 
 export class ExaSearchProvider implements SearchProvider {
   readonly name = "exa" as const;
+  private readonly endpoint: string;
 
-  constructor(private readonly endpoint: string) {}
+  constructor(endpoint: string) {
+    this.endpoint = endpoint;
+  }
 
   async search(input: SearchRequest, signal?: AbortSignal): Promise<NormalizedSearchResult[]> {
     const response = await fetch(this.endpoint, {

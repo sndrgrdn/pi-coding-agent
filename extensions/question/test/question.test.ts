@@ -23,11 +23,16 @@ test("normalizeQuestions trims question fields and defaults multiple to false", 
     },
   ]);
 
-  assert.equal(questions[0].question, "Which targets?");
-  assert.equal(questions[0].header, "Targets");
-  assert.equal(questions[0].multiple, false);
-  assert.deepEqual(questions[0].options, [{ label: "iOS", description: "Mobile" }]);
-  assert.equal(questions[1].multiple, true);
+  const first = questions[0];
+  const second = questions[1];
+  assert.ok(first);
+  assert.ok(second);
+
+  assert.equal(first.question, "Which targets?");
+  assert.equal(first.header, "Targets");
+  assert.equal(first.multiple, false);
+  assert.deepEqual(first.options, [{ label: "iOS", description: "Mobile" }]);
+  assert.equal(second.multiple, true);
 });
 
 test("normalizeAnswerSelection removes sentinel and appends custom value", () => {
@@ -109,6 +114,7 @@ test("normalizeQuestions strips undefined description to undefined", () => {
   const [q] = normalizeQuestions([
     { question: "Q", header: "H", options: [{ label: "L" }] },
   ]);
+  assert.ok(q);
   assert.deepEqual(q.options, [{ label: "L", description: undefined }]);
 });
 
@@ -116,6 +122,7 @@ test("normalizeQuestions handles empty options array", () => {
   const [q] = normalizeQuestions([
     { question: "Q", header: "H", options: [] },
   ]);
+  assert.ok(q);
   assert.deepEqual(q.options, []);
 });
 
@@ -143,6 +150,14 @@ test("summarizeAnswers handles single answer", () => {
     [["Blue"]],
   );
   assert.equal(result, '"Color?"="Blue"');
+});
+
+test("summarizeAnswers escapes quotes and newlines", () => {
+  const result = summarizeAnswers(
+    [{ question: 'Say "hi"?', header: "Prompt", options: [] }],
+    [['line "one"\nline two']],
+  );
+  assert.equal(result, '"Say \\"hi\\"?"="line \\"one\\"\\nline two"');
 });
 
 // --- Edge cases for replaceAnswerSelection ---

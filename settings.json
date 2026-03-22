@@ -1,15 +1,19 @@
 {
-  "lastChangelogVersion": "0.61.0",
   "defaultProvider": "anthropic",
   "defaultModel": "claude-opus-4-6",
+  "lastChangelogVersion": "0.61.1",
   "defaultThinkingLevel": "xhigh",
-  "hideThinkingBlock": true,
+  "hideThinkingBlock": false,
   "theme": "kanagawa-wave",
   "enabledModels": [
     "openai-codex/gpt-5.4",
     "anthropic/claude-opus-4-6"
   ],
   "packages": [
-    "https://github.com/davebcn87/pi-autoresearch"
-  ]
+    "https://github.com/davebcn87/pi-autoresearch",
+    "npm:pi-mcp-adapter",
+    "npm:pi-extmgr",
+    "npm:pi-upgrade"
+  ],
+  "editorPaddingX": 2
 }

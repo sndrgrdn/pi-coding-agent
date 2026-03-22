@@ -209,7 +209,7 @@ test("single-select: Escape in editor returns to options without submitting", ()
   assert.deepEqual(getResult()!.answers, [["A"]]);
 });
 
-test("multi-select: type-your-own combined with predefined", () => {
+test("multi-select: custom answer does not auto-submit", () => {
   const q = makeQuestion({ multiple: true, options: [{ label: "A" }, { label: "B" }] });
   const { send, getResult } = setup([q]);
   send(Key.enter); // toggle A
@@ -217,9 +217,27 @@ test("multi-select: type-your-own combined with predefined", () => {
   send(Key.down); // -> "type your own"
   send(Key.enter); // enter editor
   for (const ch of "extra") send(ch);
-  send(Key.enter); // accept custom -> advances (single question -> finish)
+  send(Key.enter); // accept custom and stay on the current question
+  assert.equal(getResult(), undefined, "should stay on the current multi-select question");
+  send(Key.ctrl("s"));
   const r = getResult()!;
   assert.deepEqual(r.answers, [["A", "extra"]]);
+});
+
+test("multi-select: can add predefined options after entering custom text first", () => {
+  const q = makeQuestion({ multiple: true, options: [{ label: "A" }, { label: "B" }] });
+  const { send, getResult } = setup([q]);
+  send(Key.down);
+  send(Key.down); // -> "type your own"
+  send(Key.enter); // enter editor
+  for (const ch of "extra") send(ch);
+  send(Key.enter); // accept custom and stay on the question
+  assert.equal(getResult(), undefined, "should not submit after accepting custom text");
+  send(Key.up);
+  send(Key.up); // -> "A"
+  send(Key.enter); // toggle A
+  send(Key.ctrl("s"));
+  assert.deepEqual(getResult()!.answers, [["A", "extra"]]);
 });
 
 test("type-your-own: empty text yields no custom answer", () => {

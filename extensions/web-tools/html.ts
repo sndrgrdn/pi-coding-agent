@@ -121,6 +121,7 @@ function resolveSrcSet(srcset: string, baseUrl: string): string | undefined {
     .filter(Boolean)
     .map((entry) => {
       const [urlPart, descriptor] = entry.split(/\s+/, 2);
+      if (!urlPart) return undefined;
       const resolved = resolveAttributeUrl(urlPart, baseUrl, true);
       if (!resolved) return undefined;
       return descriptor ? `${resolved} ${descriptor}` : resolved;

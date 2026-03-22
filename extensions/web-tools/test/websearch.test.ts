@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { extractSearchTextFromResponse, parseExaSearchText, parseSseDataLines } from "../providers/exa.ts";
+import { ExaSearchProvider, extractSearchTextFromResponse, parseExaSearchText, parseSseDataLines } from "../providers/exa.ts";
 import { formatSearchResults } from "../websearch.ts";
 
 const RAW_PROVIDER_TEXT = [
@@ -32,6 +32,11 @@ test("parseSseDataLines extracts JSON payloads from event streams", () => {
   const chunks = parseSseDataLines(SSE_RESPONSE);
   assert.equal(chunks.length, 1);
   assert.match(chunks[0] ?? "", /"jsonrpc":"2.0"/);
+});
+
+test("ExaSearchProvider instantiates without runtime TS syntax issues", () => {
+  const provider = new ExaSearchProvider("https://example.com/rpc");
+  assert.equal(provider.name, "exa");
 });
 
 test("extractSearchTextFromResponse extracts the provider text blob", () => {

@@ -61,8 +61,12 @@ class QuestionPromptComponent {
     };
   }
 
-  private getCurrentQuestion() {
-    return this.questions[this.currentQuestionIndex];
+  private getCurrentQuestion(): NormalizedQuestion {
+    const question = this.questions[this.currentQuestionIndex];
+    if (!question) {
+      throw new Error(`Missing question at index ${this.currentQuestionIndex}`);
+    }
+    return question;
   }
 
   private isCurrentQuestionMultiple() {
@@ -199,7 +203,9 @@ class QuestionPromptComponent {
       if (matchesKey(data, Key.enter)) {
         this.editingOther = false;
         this.syncCurrentAnswers();
-        this.advanceOrSubmit();
+        if (!this.isCurrentQuestionMultiple()) {
+          this.advanceOrSubmit();
+        }
         this.refresh();
         return;
       }
@@ -277,10 +283,11 @@ class QuestionPromptComponent {
     const multiple = this.isCurrentQuestionMultiple();
     const add = (value = "") => lines.push(truncateToWidth(value, contentWidth));
 
+    const answers = this.collectAnswers();
     const progress = this.questions
       .map((item, index) => {
         const isActive = index === this.currentQuestionIndex;
-        const answered = this.collectAnswers()[index]?.length > 0;
+        const answered = (answers[index]?.length ?? 0) > 0;
         const bullet = answered ? "■" : "□";
         const label = ` ${bullet} ${item.header} `;
         return isActive
@@ -300,7 +307,9 @@ class QuestionPromptComponent {
     const wrapHanging = (text: string, hangIndent: string) => {
       const wrapped = wrapTextWithAnsi(text, contentWidth);
       for (let i = 0; i < wrapped.length; i++) {
-        lines.push(i === 0 ? wrapped[i] : hangIndent + wrapped[i]);
+        const line = wrapped[i];
+        if (line === undefined) continue;
+        lines.push(i === 0 ? line : hangIndent + line);
       }
     };
 

@@ -20,7 +20,7 @@ export function summarizeAnswers(questions: QuestionInput[], answers: string[][]
   return questions.map((question, index) => {
     const selections = answers[index] ?? [];
     const value = selections.length > 0 ? selections.join(", ") : "Unanswered";
-    return `"${question.question}"="${value}"`;
+    return `${JSON.stringify(question.question)}=${JSON.stringify(value)}`;
   }).join(", ");
 }
 

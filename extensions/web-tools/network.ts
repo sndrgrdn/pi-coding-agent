@@ -187,7 +187,7 @@ export function decodeTextBuffer(buffer: Buffer, charset?: string): { text: stri
   if (normalizedCharset) {
     try {
       return {
-        text: new TextDecoder(normalizedCharset).decode(buffer),
+        text: new TextDecoder(normalizedCharset as ConstructorParameters<typeof TextDecoder>[0]).decode(buffer),
         decoder: normalizedCharset,
       };
     } catch {
@@ -255,7 +255,9 @@ export function isPrivateOrLocalIp(input: string): boolean {
   const version = isIP(ip);
   if (version === 4) {
     const octets = ip.split(".").map((part) => Number.parseInt(part, 10));
-    const [a, b] = octets;
+    const a = octets[0];
+    const b = octets[1];
+    if (a === undefined || b === undefined) return false;
     if (a === 10) return true;
     if (a === 127) return true;
     if (a === 0) return true;
