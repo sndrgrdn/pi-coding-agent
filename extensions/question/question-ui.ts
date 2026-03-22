@@ -41,6 +41,7 @@ class QuestionPromptComponent {
   private readonly customValues = new Map<number, string>();
   private cachedWidth?: number;
   private cachedLines?: string[];
+  private dirty = true;
 
   constructor({ tui, theme, questions, onDone }: QuestionPromptComponentInput) {
     this.tui = tui;
@@ -198,8 +199,7 @@ class QuestionPromptComponent {
   }
 
   private refresh() {
-    this.cachedWidth = undefined;
-    this.cachedLines = undefined;
+    this.dirty = true;
     this.tui.requestRender();
   }
 
@@ -282,11 +282,10 @@ class QuestionPromptComponent {
 
   invalidate() {
     this.cachedWidth = undefined;
-    this.cachedLines = undefined;
   }
 
   render(width: number): string[] {
-    if (this.cachedLines && this.cachedWidth === width) return this.cachedLines;
+    if (!this.dirty && this.cachedLines && this.cachedWidth === width) return this.cachedLines;
 
     const lines: string[] = [];
     const question = this.getCurrentQuestion();
@@ -392,6 +391,7 @@ class QuestionPromptComponent {
     add();
 
     this.cachedWidth = width;
+    this.dirty = false;
     this.cachedLines = lines.map(
       (line) => line + " ".repeat(Math.max(0, width - visibleWidth(line))),
     );
