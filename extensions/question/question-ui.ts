@@ -1,5 +1,14 @@
 import type { Theme } from "@mariozechner/pi-coding-agent";
-import { Editor, type EditorTheme, Key, matchesKey, truncateToWidth, type TUI, visibleWidth, wrapTextWithAnsi } from "@mariozechner/pi-tui";
+import {
+  Editor,
+  type EditorTheme,
+  Key,
+  matchesKey,
+  truncateToWidth,
+  type TUI,
+  visibleWidth,
+  wrapTextWithAnsi,
+} from "@mariozechner/pi-tui";
 import { normalizeAnswerSelection, replaceAnswerSelection } from "./helpers.ts";
 import {
   OTHER_OPTION_DISPLAY_LABEL,
@@ -63,34 +72,36 @@ class QuestionPromptComponent {
 
   private getCurrentQuestion(): NormalizedQuestion {
     const question = this.questions[this.currentQuestionIndex];
-    if (!question) {
+    if (question === undefined) {
       throw new Error(`Missing question at index ${this.currentQuestionIndex}`);
     }
     return question;
   }
 
-  private isCurrentQuestionMultiple() {
+  private isCurrentQuestionMultiple(): boolean {
     return this.getCurrentQuestion().multiple === true;
   }
 
-  private getOptionCount() {
+  private getOptionCount(): number {
     return this.getCurrentQuestion().options.length + 1;
   }
 
-  private isOtherSelected(index: number) {
+  private isOtherSelected(index: number): boolean {
     return this.selected.get(index)?.has(OTHER_OPTION_LABEL) === true;
   }
 
-  private getSelected(index: number) {
-    let selected = this.selected.get(index);
-    if (!selected) {
-      selected = new Set<string>();
-      this.selected.set(index, selected);
+  private getSelected(index: number): Set<string> {
+    const existing = this.selected.get(index);
+    if (existing !== undefined) {
+      return existing;
     }
-    return selected;
+
+    const created = new Set<string>();
+    this.selected.set(index, created);
+    return created;
   }
 
-  private setEditorText(text: string) {
+  private setEditorText(text: string): void {
     this.suppressEditorChange = true;
     try {
       this.editor.setText(text);
@@ -99,11 +110,11 @@ class QuestionPromptComponent {
     }
   }
 
-  private syncEditorForCurrentQuestion() {
+  private syncEditorForCurrentQuestion(): void {
     this.setEditorText(this.customValues.get(this.currentQuestionIndex) ?? "");
   }
 
-  private syncCurrentAnswers() {
+  private syncCurrentAnswers(): void {
     const selected = this.getSelected(this.currentQuestionIndex);
     const custom = this.customValues.get(this.currentQuestionIndex) ?? "";
     const predefinedOptions = this.getCurrentQuestion().options.map((option) => option.label);
@@ -300,6 +311,7 @@ class QuestionPromptComponent {
     const wrap = (text: string, prefix = "") => {
       const wrapWidth = Math.max(20, contentWidth - prefix.length);
       for (const line of wrapTextWithAnsi(text, wrapWidth)) {
+        if (line === undefined) continue;
         lines.push(prefix + line);
       }
     };
@@ -334,7 +346,10 @@ class QuestionPromptComponent {
     const otherSelected = this.isOtherSelected(this.currentQuestionIndex);
     const otherActive = this.currentOptionIndex === otherIndex;
     const otherDisplayLabel = this.theme.italic(OTHER_OPTION_DISPLAY_LABEL);
-    wrapHanging(this.renderOptionLine(otherDisplayLabel, otherIndex, otherActive, otherSelected, multiple), indent);
+    wrapHanging(
+      this.renderOptionLine(otherDisplayLabel, otherIndex, otherActive, otherSelected, multiple),
+      indent,
+    );
 
     const customValue = this.customValues.get(this.currentQuestionIndex)?.trim() ?? "";
     if (otherSelected || this.editingOther) {
@@ -379,11 +394,19 @@ class QuestionPromptComponent {
     add();
 
     this.cachedWidth = width;
-    this.cachedLines = lines.map((line) => line + " ".repeat(Math.max(0, width - visibleWidth(line))));
+    this.cachedLines = lines.map(
+      (line) => line + " ".repeat(Math.max(0, width - visibleWidth(line))),
+    );
     return this.cachedLines;
   }
 
-  private renderOptionLine(label: string, index: number, active: boolean, selected: boolean, multiple: boolean): string {
+  private renderOptionLine(
+    label: string,
+    index: number,
+    active: boolean,
+    selected: boolean,
+    multiple: boolean,
+  ): string {
     const prefix = active ? this.theme.fg("accent", "▶") : " ";
     const styledLabel = active ? this.theme.fg("accent", label) : label;
     if (multiple) {

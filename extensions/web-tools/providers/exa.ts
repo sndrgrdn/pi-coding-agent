@@ -56,14 +56,19 @@ export class ExaSearchProvider implements SearchProvider {
     if (contentLength) {
       const declaredBytes = Number.parseInt(contentLength, 10);
       if (Number.isFinite(declaredBytes) && declaredBytes > MAX_SEARCH_RESPONSE_BYTES) {
-        throw new Error(`Search response too large (exceeds ${Math.floor(MAX_SEARCH_RESPONSE_BYTES / (1024 * 1024))}MB limit)`);
+        throw new Error(
+          `Search response too large (exceeds ${Math.floor(MAX_SEARCH_RESPONSE_BYTES / (1024 * 1024))}MB limit)`,
+        );
       }
     }
 
     const parsedContentType = parseContentType(response.headers.get("content-type"));
     const { buffer } = await readBodyWithLimit(response, MAX_SEARCH_RESPONSE_BYTES, signal);
     const { text: responseText } = decodeTextBuffer(buffer, parsedContentType.charset);
-    const searchText = extractSearchTextFromResponse(responseText, parsedContentType.contentType || parsedContentType.mime);
+    const searchText = extractSearchTextFromResponse(
+      responseText,
+      parsedContentType.contentType || parsedContentType.mime,
+    );
     const results = parseExaSearchText(searchText);
 
     if (results.length === 0 && !isExplicitNoResultsText(searchText)) {
@@ -254,7 +259,10 @@ function stripRepeatedLeadingTitle(snippet: string, title: string): string {
     if (lines[firstIndex]?.trim().toLowerCase() !== normalizedTitle) {
       return current.trim();
     }
-    current = lines.slice(firstIndex + 1).join("\n").trim();
+    current = lines
+      .slice(firstIndex + 1)
+      .join("\n")
+      .trim();
   }
   return current.trim();
 }
@@ -262,5 +270,9 @@ function stripRepeatedLeadingTitle(snippet: string, title: string): string {
 function isExplicitNoResultsText(text: string): boolean {
   const normalized = text.trim().toLowerCase();
   if (!normalized) return true;
-  return normalized === "no results found" || normalized.startsWith("no results found") || normalized.includes("no relevant results");
+  return (
+    normalized === "no results found" ||
+    normalized.startsWith("no results found") ||
+    normalized.includes("no relevant results")
+  );
 }

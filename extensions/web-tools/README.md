@@ -71,7 +71,7 @@ The extension has an internal settings shape:
     blockPrivateHosts: boolean;
     maxRedirects: number;
     fallbackUserAgent: string;
-  };
+  }
   search: {
     enabled: boolean;
     provider: "exa";
@@ -79,7 +79,7 @@ The extension has an internal settings shape:
     timeoutSeconds: number;
     defaultMaxResults: number;
     defaultDepth: "auto" | "fast" | "deep";
-  };
+  }
 }
 ```
 

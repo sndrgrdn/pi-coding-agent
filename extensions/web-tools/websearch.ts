@@ -15,7 +15,8 @@ export function createWebSearchTool() {
   return {
     name: "websearch",
     label: "Web Search",
-    description: "Search the public web for current information and candidate URLs to inspect with webfetch.",
+    description:
+      "Search the public web for current information and candidate URLs to inspect with webfetch.",
     promptSnippet: "Search the public web for current information and relevant URLs",
     promptGuidelines: [
       "Use this tool when the user needs current public-web information or when the right URL is not yet known.",
@@ -25,7 +26,8 @@ export function createWebSearchTool() {
       query: Type.String({ description: "Search query." }),
       maxResults: Type.Optional(
         Type.Number({
-          description: "Maximum number of results to return. Overrides the web-tools search default max results setting.",
+          description:
+            "Maximum number of results to return. Overrides the web-tools search default max results setting.",
         }),
       ),
       depth: Type.Optional(
@@ -94,10 +96,10 @@ export function createWebSearchTool() {
         };
       } catch (error) {
         if (signal?.aborted) {
-          throw new Error("Web search cancelled");
+          throw new Error("Web search cancelled", { cause: error });
         }
         if (isAbortError(error) || composed.signal.aborted) {
-          throw new Error(`Web search timed out after ${timeoutSeconds}s`);
+          throw new Error(`Web search timed out after ${timeoutSeconds}s`, { cause: error });
         }
         throw error instanceof Error ? error : new Error(String(error));
       } finally {
@@ -118,7 +120,11 @@ export function createWebSearchTool() {
     },
 
     renderResult(
-      result: { content: Array<{ type: string; text?: string }>; details?: WebSearchDetails; isError?: boolean },
+      result: {
+        content: Array<{ type: string; text?: string }>;
+        details?: WebSearchDetails;
+        isError?: boolean;
+      },
       options: { expanded: boolean; isPartial: boolean },
       theme: any,
     ) {
@@ -126,7 +132,11 @@ export function createWebSearchTool() {
         return new Text(theme.fg("warning", "Searching..."), 0, 0);
       }
       if (result.isError) {
-        return new Text(theme.fg("error", `✗ ${getTextContent(result.content) || "Search failed"}`), 0, 0);
+        return new Text(
+          theme.fg("error", `✗ ${getTextContent(result.content) || "Search failed"}`),
+          0,
+          0,
+        );
       }
 
       const details = result.details;
@@ -140,7 +150,10 @@ export function createWebSearchTool() {
       text = appendExpandHint(text, options.expanded);
 
       if (options.expanded) {
-        text = appendExpandedPreview(text, getTextContent(result.content), theme, { maxLines: 16, maxColumns: 220 });
+        text = appendExpandedPreview(text, getTextContent(result.content), theme, {
+          maxLines: 16,
+          maxColumns: 220,
+        });
         if (details?.fullOutputPath) {
           text += `\n${theme.fg("dim", `Full output: ${details.fullOutputPath}`)}`;
         }

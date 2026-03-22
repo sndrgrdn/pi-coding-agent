@@ -32,10 +32,18 @@ function mockTUI() {
 
 function mockTheme() {
   return {
-    fg(_color: string, text: string) { return text; },
-    bg(_color: string, text: string) { return text; },
-    bold(text: string) { return text; },
-    italic(text: string) { return text; },
+    fg(_color: string, text: string) {
+      return text;
+    },
+    bg(_color: string, text: string) {
+      return text;
+    },
+    bold(text: string) {
+      return text;
+    },
+    italic(text: string) {
+      return text;
+    },
   } as any;
 }
 
@@ -44,15 +52,15 @@ function makeQuestion(overrides: Partial<NormalizedQuestion> = {}): NormalizedQu
     question: "Pick a color",
     header: "Color",
     multiple: false,
-    options: [
-      { label: "Red", description: "Warm" },
-      { label: "Blue" },
-    ],
+    options: [{ label: "Red", description: "Warm" }, { label: "Blue" }],
     ...overrides,
   };
 }
 
-interface DoneResult { cancelled: boolean; answers: string[][] }
+interface DoneResult {
+  cancelled: boolean;
+  answers: string[][];
+}
 
 function setup(questions: NormalizedQuestion[]) {
   let result: DoneResult | undefined;
@@ -60,13 +68,21 @@ function setup(questions: NormalizedQuestion[]) {
     tui: mockTUI(),
     theme: mockTheme(),
     questions,
-    onDone(r) { result = r; },
+    onDone(r) {
+      result = r;
+    },
   });
   return {
     component,
-    send(key: string) { component.handleInput(raw(key)); },
-    render(width = 80) { return component.render(width); },
-    getResult() { return result; },
+    send(key: string) {
+      component.handleInput(raw(key));
+    },
+    render(width = 80) {
+      return component.render(width);
+    },
+    getResult() {
+      return result;
+    },
   };
 }
 
@@ -109,7 +125,7 @@ test("single-select: down past last option stays at last", () => {
   // options: Only + "type your own" = 2 entries, index 0 and 1
   send(Key.down); // -> "type your own" (index 1)
   send(Key.down); // should stay at index 1
-  send(Key.up);   // -> "Only" (index 0)
+  send(Key.up); // -> "Only" (index 0)
   send(Key.enter);
   assert.deepEqual(getResult()!.answers, [["Only"]]);
 });
@@ -148,7 +164,11 @@ test("multi-select: toggle on then off deselects", () => {
 
 test("multi-question: Tab advances to next question", () => {
   const q1 = makeQuestion();
-  const q2 = makeQuestion({ question: "Pick a size", header: "Size", options: [{ label: "S" }, { label: "M" }] });
+  const q2 = makeQuestion({
+    question: "Pick a size",
+    header: "Size",
+    options: [{ label: "S" }, { label: "M" }],
+  });
   const { send, getResult } = setup([q1, q2]);
   send(Key.enter); // select Red on Q1 -> auto-advance to Q2
   send(Key.enter); // select S on Q2 -> submit
@@ -169,7 +189,11 @@ test("multi-question: Tab from last question wraps or stays, ctrl+s submits", ()
 
 test("multi-question: Shift+Tab navigates back", () => {
   const q1 = makeQuestion();
-  const q2 = makeQuestion({ question: "Size", header: "Size", options: [{ label: "S" }, { label: "M" }] });
+  const q2 = makeQuestion({
+    question: "Size",
+    header: "Size",
+    options: [{ label: "S" }, { label: "M" }],
+  });
   const { send, getResult } = setup([q1, q2]);
   send(Key.enter); // select Red -> advance to Q2
   send(Key.shift("tab")); // back to Q1
@@ -199,7 +223,7 @@ test("single-select: type-your-own via other option", () => {
 test("single-select: Escape in editor returns to options without submitting", () => {
   const q = makeQuestion({ options: [{ label: "A" }] });
   const { send, getResult } = setup([q]);
-  send(Key.down);  // -> "type your own"
+  send(Key.down); // -> "type your own"
   send(Key.enter); // enter editor
   for (const ch of "draft") send(ch);
   send(Key.escape); // exit editor, back to options
@@ -243,7 +267,7 @@ test("multi-select: can add predefined options after entering custom text first"
 test("type-your-own: empty text yields no custom answer", () => {
   const q = makeQuestion({ options: [{ label: "A" }] });
   const { send, getResult } = setup([q]);
-  send(Key.down);  // -> "type your own"
+  send(Key.down); // -> "type your own"
   send(Key.enter); // enter editor
   send(Key.enter); // submit empty -> finishes
   const r = getResult()!;

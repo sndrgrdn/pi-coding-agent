@@ -20,7 +20,6 @@ const REMOVAL_SELECTOR = [
 
 const turndown = createTurndownService();
 const compiledHtmlToText = compileHtmlToText({
-
   baseElements: {
     selectors: ["body", "main", "article", "div"],
     returnDomByDefault: true,
@@ -43,7 +42,11 @@ export function sanitizeHtml(rawHtml: string, baseUrl: string): string {
     for (const attribute of ["href", "src", "poster"] as const) {
       const value = element.getAttribute(attribute);
       if (!value) continue;
-      const resolved = resolveAttributeUrl(value, baseUrl, attribute === "src" || attribute === "poster");
+      const resolved = resolveAttributeUrl(
+        value,
+        baseUrl,
+        attribute === "src" || attribute === "poster",
+      );
       if (resolved) {
         element.setAttribute(attribute, resolved);
       } else {
@@ -97,7 +100,11 @@ function createTurndownService(): TurndownService {
   return service;
 }
 
-function resolveAttributeUrl(value: string, baseUrl: string, allowDataUrl: boolean): string | undefined {
+function resolveAttributeUrl(
+  value: string,
+  baseUrl: string,
+  allowDataUrl: boolean,
+): string | undefined {
   const trimmed = value.trim();
   if (!trimmed) return undefined;
   try {
@@ -120,8 +127,10 @@ function resolveSrcSet(srcset: string, baseUrl: string): string | undefined {
     .map((entry) => entry.trim())
     .filter(Boolean)
     .map((entry) => {
-      const [urlPart, descriptor] = entry.split(/\s+/, 2);
-      if (!urlPart) return undefined;
+      const parts = entry.split(/\s+/, 2);
+      const urlPart = parts[0];
+      const descriptor = parts[1];
+      if (urlPart === undefined) return undefined;
       const resolved = resolveAttributeUrl(urlPart, baseUrl, true);
       if (!resolved) return undefined;
       return descriptor ? `${resolved} ${descriptor}` : resolved;

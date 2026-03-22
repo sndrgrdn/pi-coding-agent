@@ -42,12 +42,18 @@ export function createWebFetchTool() {
       ),
       timeout: Type.Optional(
         Type.Number({
-          description: "Optional timeout in seconds. Overrides the web-tools fetch timeout setting.",
+          description:
+            "Optional timeout in seconds. Overrides the web-tools fetch timeout setting.",
         }),
       ),
     }),
 
-    async execute(_toolCallId: string, params: { url: string; format?: WebFetchFormat; timeout?: number }, signal?: AbortSignal, onUpdate?: (...args: any[]) => void) {
+    async execute(
+      _toolCallId: string,
+      params: { url: string; format?: WebFetchFormat; timeout?: number },
+      signal?: AbortSignal,
+      onUpdate?: (...args: any[]) => void,
+    ) {
       const settings = getWebToolsSettings();
       const requestedUrl = normalizeAndValidateUrl(params.url);
       const format = params.format ?? settings.fetch.defaultFormat;
@@ -79,7 +85,10 @@ export function createWebFetchTool() {
 
         if (shouldRetryWithFallbackUserAgent(response)) {
           await response.body?.cancel().catch(() => undefined);
-          const retryHeaders = createWebFetchHeaders(accept, getFallbackUserAgent(settings.fetch.fallbackUserAgent));
+          const retryHeaders = createWebFetchHeaders(
+            accept,
+            getFallbackUserAgent(settings.fetch.fallbackUserAgent),
+          );
           ({ response, finalUrl } = await fetchWithRedirects(requestedUrl, {
             headers: retryHeaders,
             signal: composed.signal,
@@ -89,19 +98,27 @@ export function createWebFetchTool() {
         }
 
         if (!response.ok) {
-          throw new Error(`Request failed (${response.status} ${response.statusText || ""})`.trim());
+          throw new Error(
+            `Request failed (${response.status} ${response.statusText || ""})`.trim(),
+          );
         }
 
         const contentLength = response.headers.get("content-length");
         if (contentLength) {
           const declaredBytes = Number.parseInt(contentLength, 10);
           if (Number.isFinite(declaredBytes) && declaredBytes > settings.fetch.maxResponseBytes) {
-            throw new Error(`Response too large (exceeds ${Math.floor(settings.fetch.maxResponseBytes / (1024 * 1024))}MB limit)`);
+            throw new Error(
+              `Response too large (exceeds ${Math.floor(settings.fetch.maxResponseBytes / (1024 * 1024))}MB limit)`,
+            );
           }
         }
 
         const parsedContentType = parseContentType(response.headers.get("content-type"));
-        const { buffer, bytes } = await readBodyWithLimit(response, settings.fetch.maxResponseBytes, composed.signal);
+        const { buffer, bytes } = await readBodyWithLimit(
+          response,
+          settings.fetch.maxResponseBytes,
+          composed.signal,
+        );
 
         if (parsedContentType.kind === "raster-image") {
           const details: WebFetchDetails = {
@@ -116,7 +133,9 @@ export function createWebFetchTool() {
           };
           return {
             content: [
-              textContent(`Fetched image from ${finalUrl.toString()} (${parsedContentType.mime || "image"}, ${formatSize(bytes)})`),
+              textContent(
+                `Fetched image from ${finalUrl.toString()} (${parsedContentType.mime || "image"}, ${formatSize(bytes)})`,
+              ),
               imageContent(buffer.toString("base64"), parsedContentType.mime),
             ],
             details,
@@ -162,10 +181,10 @@ export function createWebFetchTool() {
         };
       } catch (error) {
         if (signal?.aborted) {
-          throw new Error("Web fetch cancelled");
+          throw new Error("Web fetch cancelled", { cause: error });
         }
         if (isAbortError(error) || composed.signal.aborted) {
-          throw new Error(`Web fetch timed out after ${timeoutSeconds}s`);
+          throw new Error(`Web fetch timed out after ${timeoutSeconds}s`, { cause: error });
         }
         throw error instanceof Error ? error : new Error(String(error));
       } finally {
@@ -182,12 +201,24 @@ export function createWebFetchTool() {
       return new Text(text, 0, 0);
     },
 
-    renderResult(result: { content: Array<{ type: string; text?: string }>; details?: WebFetchDetails; isError?: boolean }, options: { expanded: boolean; isPartial: boolean }, theme: any) {
+    renderResult(
+      result: {
+        content: Array<{ type: string; text?: string }>;
+        details?: WebFetchDetails;
+        isError?: boolean;
+      },
+      options: { expanded: boolean; isPartial: boolean },
+      theme: any,
+    ) {
       if (options.isPartial) {
         return new Text(theme.fg("warning", "Fetching..."), 0, 0);
       }
       if (result.isError) {
-        return new Text(theme.fg("error", `✗ ${getTextContent(result.content) || "Fetch failed"}`), 0, 0);
+        return new Text(
+          theme.fg("error", `✗ ${getTextContent(result.content) || "Fetch failed"}`),
+          0,
+          0,
+        );
       }
 
       const details = result.details;
@@ -210,7 +241,10 @@ export function createWebFetchTool() {
         if (details?.image) {
           text += `\n${theme.fg("dim", `Image URL: ${details.finalUrl}`)}`;
         } else {
-          text = appendExpandedPreview(text, getTextContent(result.content), theme, { maxLines: 12, maxColumns: 220 });
+          text = appendExpandedPreview(text, getTextContent(result.content), theme, {
+            maxLines: 12,
+            maxColumns: 220,
+          });
         }
         if (details?.fullOutputPath) {
           text += `\n${theme.fg("dim", `Full output: ${details.fullOutputPath}`)}`;
@@ -233,7 +267,10 @@ function getAcceptHeader(format: WebFetchFormat): string {
   }
 }
 
-export function createWebFetchHeaders(accept: string, userAgent = OPENCODE_WEBFETCH_DEFAULT_USER_AGENT): Record<string, string> {
+export function createWebFetchHeaders(
+  accept: string,
+  userAgent = OPENCODE_WEBFETCH_DEFAULT_USER_AGENT,
+): Record<string, string> {
   return {
     "User-Agent": userAgent,
     Accept: accept,
@@ -246,7 +283,9 @@ export function getFallbackUserAgent(configuredUserAgent?: string): string {
   return trimmed || OPENCODE_WEBFETCH_FALLBACK_USER_AGENT;
 }
 
-export function shouldRetryWithFallbackUserAgent(response: Pick<Response, "status" | "headers">): boolean {
+export function shouldRetryWithFallbackUserAgent(
+  response: Pick<Response, "status" | "headers">,
+): boolean {
   return response.status === 403 && response.headers.get("cf-mitigated") === "challenge";
 }
 

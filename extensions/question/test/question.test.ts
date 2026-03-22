@@ -23,10 +23,8 @@ test("normalizeQuestions trims question fields and defaults multiple to false", 
     },
   ]);
 
-  const first = questions[0];
-  const second = questions[1];
-  assert.ok(first);
-  assert.ok(second);
+  const first = questions[0]!;
+  const second = questions[1]!;
 
   assert.equal(first.question, "Which targets?");
   assert.equal(first.header, "Targets");
@@ -36,13 +34,20 @@ test("normalizeQuestions trims question fields and defaults multiple to false", 
 });
 
 test("normalizeAnswerSelection removes sentinel and appends custom value", () => {
-  assert.deepEqual(normalizeAnswerSelection(["A", OTHER_OPTION_LABEL], "Custom", ["A", "B"]), ["A", "Custom"]);
+  assert.deepEqual(normalizeAnswerSelection(["A", OTHER_OPTION_LABEL], "Custom", ["A", "B"]), [
+    "A",
+    "Custom",
+  ]);
   assert.deepEqual(normalizeAnswerSelection([OTHER_OPTION_LABEL], "  ", ["A", "B"]), []);
 });
 
 test("normalizeAnswerSelection drops stale incremental _other_ edits", () => {
   assert.deepEqual(
-    normalizeAnswerSelection(["TypeScript", "t", "te", "tec", OTHER_OPTION_LABEL], "tech equipment", ["TypeScript", "Rust"]),
+    normalizeAnswerSelection(
+      ["TypeScript", "t", "te", "tec", OTHER_OPTION_LABEL],
+      "tech equipment",
+      ["TypeScript", "Rust"],
+    ),
     ["TypeScript", "tech equipment"],
   );
 });
@@ -91,11 +96,16 @@ test("normalizeAnswerSelection returns empty for only sentinel and empty custom"
 
 test("normalizeAnswerSelection deduplicates custom matching a predefined option", () => {
   // custom text happens to match a predefined label already selected
-  assert.deepEqual(normalizeAnswerSelection(["Alpha", OTHER_OPTION_LABEL], "Alpha", ["Alpha", "Beta"]), ["Alpha"]);
+  assert.deepEqual(
+    normalizeAnswerSelection(["Alpha", OTHER_OPTION_LABEL], "Alpha", ["Alpha", "Beta"]),
+    ["Alpha"],
+  );
 });
 
 test("normalizeAnswerSelection custom only (no predefined selected)", () => {
-  assert.deepEqual(normalizeAnswerSelection([OTHER_OPTION_LABEL], "my answer", ["X", "Y"]), ["my answer"]);
+  assert.deepEqual(normalizeAnswerSelection([OTHER_OPTION_LABEL], "my answer", ["X", "Y"]), [
+    "my answer",
+  ]);
 });
 
 test("normalizeAnswerSelection ignores values not in predefined options", () => {
@@ -111,18 +121,12 @@ test("normalizeAnswerSelection with empty predefined options list", () => {
 // --- Edge cases for normalizeQuestions ---
 
 test("normalizeQuestions strips undefined description to undefined", () => {
-  const [q] = normalizeQuestions([
-    { question: "Q", header: "H", options: [{ label: "L" }] },
-  ]);
-  assert.ok(q);
+  const q = normalizeQuestions([{ question: "Q", header: "H", options: [{ label: "L" }] }])[0]!;
   assert.deepEqual(q.options, [{ label: "L", description: undefined }]);
 });
 
 test("normalizeQuestions handles empty options array", () => {
-  const [q] = normalizeQuestions([
-    { question: "Q", header: "H", options: [] },
-  ]);
-  assert.ok(q);
+  const q = normalizeQuestions([{ question: "Q", header: "H", options: [] }])[0]!;
   assert.deepEqual(q.options, []);
 });
 

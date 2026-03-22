@@ -38,12 +38,17 @@ export interface ComposedSignal {
   cleanup: () => void;
 }
 
-export function createOperationSignal(timeoutMs: number, outerSignal?: AbortSignal): ComposedSignal {
+export function createOperationSignal(
+  timeoutMs: number,
+  outerSignal?: AbortSignal,
+): ComposedSignal {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => {
     controller.abort(new Error(`Operation timed out after ${Math.ceil(timeoutMs / 1000)}s`));
   }, timeoutMs);
-  const signal = outerSignal ? AbortSignal.any([outerSignal, controller.signal]) : controller.signal;
+  const signal = outerSignal
+    ? AbortSignal.any([outerSignal, controller.signal])
+    : controller.signal;
   return {
     signal,
     cleanup: () => clearTimeout(timeoutId),
@@ -97,7 +102,9 @@ export async function fetchWithRedirects(
       await response.body?.cancel().catch(() => undefined);
       const location = response.headers.get("location");
       if (!location) {
-        throw new Error(`Redirect response from ${currentUrl.toString()} was missing a Location header`);
+        throw new Error(
+          `Redirect response from ${currentUrl.toString()} was missing a Location header`,
+        );
       }
       if (redirects >= options.maxRedirects) {
         throw new Error(`Too many redirects while fetching ${initialUrl.toString()}`);
@@ -142,7 +149,9 @@ export async function readBodyWithLimit(
       bytes += value.byteLength;
       if (bytes > maxBytes) {
         await reader.cancel().catch(() => undefined);
-        throw new Error(`Response too large (exceeds ${Math.floor(maxBytes / (1024 * 1024))}MB limit)`);
+        throw new Error(
+          `Response too large (exceeds ${Math.floor(maxBytes / (1024 * 1024))}MB limit)`,
+        );
       }
 
       chunks.push(Buffer.from(value.buffer, value.byteOffset, value.byteLength));
@@ -161,7 +170,7 @@ export function parseContentType(contentTypeHeader: string | null | undefined): 
   const contentType = contentTypeHeader?.trim() ?? "";
   const [mimePart = ""] = contentType.split(";");
   const mime = mimePart.trim().toLowerCase();
-  const charsetMatch = contentType.match(/charset\s*=\s*['\"]?([^;'\"]+)/i);
+  const charsetMatch = contentType.match(/charset\s*=\s*['"]?([^;'"]+)/i);
   const charset = charsetMatch?.[1]?.trim().toLowerCase();
   return {
     contentType,
@@ -178,16 +187,24 @@ export function classifyMimeType(mime: string): ContentKind {
   if (RASTER_IMAGE_MIME_TYPES.has(normalized)) return "raster-image";
   if (normalized === "image/svg+xml") return "svg";
   if (normalized.startsWith("text/")) return normalized === "text/html" ? "html" : "text";
-  if (TEXT_MIME_TYPES.has(normalized) || normalized.endsWith("+xml") || normalized.endsWith("+json")) return "text";
+  if (
+    TEXT_MIME_TYPES.has(normalized) ||
+    normalized.endsWith("+xml") ||
+    normalized.endsWith("+json")
+  )
+    return "text";
   return "binary";
 }
 
-export function decodeTextBuffer(buffer: Buffer, charset?: string): { text: string; decoder: string } {
+export function decodeTextBuffer(
+  buffer: Buffer,
+  charset?: string,
+): { text: string; decoder: string } {
   const normalizedCharset = normalizeCharset(charset);
   if (normalizedCharset) {
     try {
       return {
-        text: new TextDecoder(normalizedCharset as ConstructorParameters<typeof TextDecoder>[0]).decode(buffer),
+        text: new TextDecoder(normalizedCharset as any).decode(buffer),
         decoder: normalizedCharset,
       };
     } catch {
@@ -225,7 +242,10 @@ async function assertPublicUrl(url: URL): Promise<void> {
       }
     }
   } catch (error) {
-    if (error instanceof Error && error.message.startsWith("Blocked private or local IP address:")) {
+    if (
+      error instanceof Error &&
+      error.message.startsWith("Blocked private or local IP address:")
+    ) {
       throw error;
     }
     // If DNS resolution fails, let the later fetch surface the real connectivity error.
@@ -255,16 +275,16 @@ export function isPrivateOrLocalIp(input: string): boolean {
   const version = isIP(ip);
   if (version === 4) {
     const octets = ip.split(".").map((part) => Number.parseInt(part, 10));
-    const a = octets[0];
-    const b = octets[1];
-    if (a === undefined || b === undefined) return false;
-    if (a === 10) return true;
-    if (a === 127) return true;
-    if (a === 0) return true;
-    if (a === 169 && b === 254) return true;
-    if (a === 192 && b === 168) return true;
-    if (a === 172 && b >= 16 && b <= 31) return true;
-    if (a === 100 && b >= 64 && b <= 127) return true;
+    const firstOctet = octets[0];
+    const secondOctet = octets[1];
+    if (firstOctet === undefined || secondOctet === undefined) return false;
+    if (firstOctet === 10) return true;
+    if (firstOctet === 127) return true;
+    if (firstOctet === 0) return true;
+    if (firstOctet === 169 && secondOctet === 254) return true;
+    if (firstOctet === 192 && secondOctet === 168) return true;
+    if (firstOctet === 172 && secondOctet >= 16 && secondOctet <= 31) return true;
+    if (firstOctet === 100 && secondOctet >= 64 && secondOctet <= 127) return true;
     return false;
   }
   if (version === 6) {

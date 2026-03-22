@@ -18,12 +18,15 @@ const QuestionSchema = Type.Object({
   question: Type.String({ description: "Complete question to ask the user" }),
   header: Type.String({ description: "Short label for progress tabs" }),
   options: Type.Array(OptionSchema, { description: "Available predefined options" }),
-  multiple: Type.Optional(Type.Boolean({ description: "Allow selecting multiple answers for this question" })),
+  multiple: Type.Optional(
+    Type.Boolean({ description: "Allow selecting multiple answers for this question" }),
+  ),
 });
 
 const QuestionParams = Type.Object({
   questions: Type.Array(QuestionSchema, {
-    description: "Questions to ask. Questions are single-select by default and support a custom answer; set multiple=true to allow selecting more than one option.",
+    description:
+      "Questions to ask. Questions are single-select by default and support a custom answer; set multiple=true to allow selecting more than one option.",
     minItems: 1,
   }),
 });
@@ -34,7 +37,8 @@ export function createQuestionTool(): ToolDefinition<typeof QuestionParams, Ques
     label: "Question",
     description:
       "Ask the user one or more questions. Questions are single-select by default, support a type-your-own-answer option, and can allow multiple selections when multiple=true. Use this to clarify requirements or gather choices during execution.",
-    promptSnippet: "Ask one or more user questions with single-select by default, optional multiple selection, and a type-your-own-answer option.",
+    promptSnippet:
+      "Ask one or more user questions with single-select by default, optional multiple selection, and a type-your-own-answer option.",
     promptGuidelines: [
       "Use this tool when you need clarification, preferences, or implementation choices from the user.",
       "Questions are single-select by default; set multiple=true only when the user should choose more than one option.",
@@ -48,7 +52,10 @@ export function createQuestionTool(): ToolDefinition<typeof QuestionParams, Ques
           questions: params.questions.map((question) => ({
             question: question.question,
             header: question.header,
-            options: [...question.options.map((option) => option.label), OTHER_OPTION_DISPLAY_LABEL],
+            options: [
+              ...question.options.map((option) => option.label),
+              OTHER_OPTION_DISPLAY_LABEL,
+            ],
             multiple: question.multiple === true,
           })),
           answers: [],
@@ -60,8 +67,9 @@ export function createQuestionTool(): ToolDefinition<typeof QuestionParams, Ques
       }
 
       const questions = normalizeQuestions(params.questions as QuestionInput[]);
-      const result = await ctx.ui.custom<{ cancelled: boolean; answers: string[][] }>((tui, theme, _kb, done) =>
-        createQuestionPromptComponent({ tui, theme, questions, onDone: done }),
+      const result = await ctx.ui.custom<{ cancelled: boolean; answers: string[][] }>(
+        (tui, theme, _kb, done) =>
+          createQuestionPromptComponent({ tui, theme, questions, onDone: done }),
       );
 
       const details: QuestionResultDetails = {
@@ -91,7 +99,8 @@ export function createQuestionTool(): ToolDefinition<typeof QuestionParams, Ques
     renderCall(args, theme) {
       const count = Array.isArray(args.questions) ? args.questions.length : 0;
       return new Text(
-        theme.fg("toolTitle", theme.bold("question ")) + theme.fg("muted", `${count} question${count === 1 ? "" : "s"}`),
+        theme.fg("toolTitle", theme.bold("question ")) +
+          theme.fg("muted", `${count} question${count === 1 ? "" : "s"}`),
         0,
         0,
       );

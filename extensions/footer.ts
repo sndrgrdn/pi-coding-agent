@@ -22,8 +22,10 @@ type BgTheme = {
   bg: (color: any, text: string) => string;
 };
 
+const ANSI_SGR_REGEX = new RegExp(`${String.fromCharCode(27)}\\[[^m]*m`, "g");
+
 function stripAnsi(s: string): string {
-  return s.replace(/\x1b\[[^m]*m/g, "");
+  return s.replace(ANSI_SGR_REGEX, "");
 }
 
 function extractBgCode(theme: BgTheme, color: any): string {
@@ -130,7 +132,7 @@ class MinimalEditor extends CustomEditor {
 
 export default function (pi: ExtensionAPI) {
   pi.on("session_start", async (_event, ctx) => {
-    const theme = ctx.ui.theme;
+    const uiTheme = ctx.ui.theme;
 
     // ── Editor ────────────────────────────────────────────
     const infoLine = (innerWidth: number): string => {
@@ -163,32 +165,32 @@ export default function (pi: ExtensionAPI) {
         high: "thinkingHigh",
         xhigh: "thinkingXhigh",
       } as const;
-      const thinkingColor = level in thinkingColorMap
-        ? thinkingColorMap[level as keyof typeof thinkingColorMap]
-        : "dim";
-      const levelColored = theme.fg(thinkingColor, level);
+      const thinkingColor =
+        level in thinkingColorMap
+          ? thinkingColorMap[level as keyof typeof thinkingColorMap]
+          : "dim";
+      const levelColored = uiTheme.fg(thinkingColor, level);
 
-      const dot = theme.fg("dim", " · ");
+      const dot = uiTheme.fg("dim", " · ");
       const showThinking = hasThinking && level !== "off";
       const left = showThinking
-        ? theme.fg("text", modelId) + dot + levelColored
-        : theme.fg("text", modelId);
+        ? uiTheme.fg("text", modelId) + dot + levelColored
+        : uiTheme.fg("text", modelId);
 
       let pctColored: string;
-      if (pctVal === null) pctColored = theme.fg("dim", pctStr);
-      else if (pctVal > 90) pctColored = theme.fg("error", pctStr);
-      else if (pctVal > 70) pctColored = theme.fg("warning", pctStr);
-      else pctColored = theme.fg("dim", pctStr);
+      if (pctVal === null) pctColored = uiTheme.fg("dim", pctStr);
+      else if (pctVal > 90) pctColored = uiTheme.fg("error", pctStr);
+      else if (pctVal > 70) pctColored = uiTheme.fg("warning", pctStr);
+      else pctColored = uiTheme.fg("dim", pctStr);
 
-      const right = theme.fg("dim", `${tokensStr} `)
-        + pctColored
-        + theme.fg("dim", ` (${cost})`);
+      const right =
+        uiTheme.fg("dim", `${tokensStr} `) + pctColored + uiTheme.fg("dim", ` (${cost})`);
 
       return fitInfoLine(left, right, innerWidth);
     };
 
     ctx.ui.setEditorComponent((tui, editorTheme, kb) => {
-      const e = new MinimalEditor(tui, editorTheme, kb, theme);
+      const e = new MinimalEditor(tui, editorTheme, kb, uiTheme);
       e.infoLine = infoLine;
       return e;
     });
@@ -221,9 +223,10 @@ export default function (pi: ExtensionAPI) {
           const pathPart = theme.fg("muted", pathStr);
           const pW = visibleWidth(pathPart);
           const gap = width - pW - hintsW;
-          const row = gap >= 2
-            ? pathPart + " ".repeat(gap) + hints
-            : " ".repeat(Math.max(0, width - hintsW)) + hints;
+          const row =
+            gap >= 2
+              ? pathPart + " ".repeat(gap) + hints
+              : " ".repeat(Math.max(0, width - hintsW)) + hints;
 
           return [truncateToWidth(row, width)];
         },

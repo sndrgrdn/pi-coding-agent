@@ -1,6 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ExaSearchProvider, extractSearchTextFromResponse, parseExaSearchText, parseSseDataLines } from "../providers/exa.ts";
+import {
+  ExaSearchProvider,
+  extractSearchTextFromResponse,
+  parseExaSearchText,
+  parseSseDataLines,
+} from "../providers/exa.ts";
 import { formatSearchResults } from "../websearch.ts";
 
 const RAW_PROVIDER_TEXT = [

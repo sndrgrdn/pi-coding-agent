@@ -5,9 +5,17 @@ import {
   type WebToolsSettings,
 } from "./types.ts";
 
-const FETCH_DEFAULT_FORMAT_VALUES = ["markdown", "text", "html"] as const satisfies readonly WebFetchFormat[];
+const FETCH_DEFAULT_FORMAT_VALUES = [
+  "markdown",
+  "text",
+  "html",
+] as const satisfies readonly WebFetchFormat[];
 const SEARCH_PROVIDER_VALUES = ["exa"] as const satisfies readonly SearchProviderName[];
-const SEARCH_DEFAULT_DEPTH_VALUES = ["auto", "fast", "deep"] as const satisfies readonly SearchDepth[];
+const SEARCH_DEFAULT_DEPTH_VALUES = [
+  "auto",
+  "fast",
+  "deep",
+] as const satisfies readonly SearchDepth[];
 
 const DEFAULTS = {
   fetchDefaultFormat: "markdown",
@@ -55,9 +63,21 @@ export function parseEnumSetting<T extends string>(
 }
 
 export function getWebToolsSettings(): WebToolsSettings {
-  const fetchDefaultFormat = parseEnumSetting(undefined, FETCH_DEFAULT_FORMAT_VALUES, DEFAULTS.fetchDefaultFormat);
-  const searchProvider = parseEnumSetting(undefined, SEARCH_PROVIDER_VALUES, DEFAULTS.searchProvider);
-  const searchDefaultDepth = parseEnumSetting(undefined, SEARCH_DEFAULT_DEPTH_VALUES, DEFAULTS.searchDefaultDepth);
+  const fetchDefaultFormat = parseEnumSetting(
+    undefined,
+    FETCH_DEFAULT_FORMAT_VALUES,
+    DEFAULTS.fetchDefaultFormat,
+  );
+  const searchProvider = parseEnumSetting(
+    undefined,
+    SEARCH_PROVIDER_VALUES,
+    DEFAULTS.searchProvider,
+  );
+  const searchDefaultDepth = parseEnumSetting(
+    undefined,
+    SEARCH_DEFAULT_DEPTH_VALUES,
+    DEFAULTS.searchDefaultDepth,
+  );
 
   return {
     fetch: {

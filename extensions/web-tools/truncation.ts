@@ -36,7 +36,11 @@ export async function truncateTextOutput(
     };
   }
 
-  const fullOutputPath = await writeTempTextFile(options.tempPrefix, options.fileName ?? "output.txt", output);
+  const fullOutputPath = await writeTempTextFile(
+    options.tempPrefix,
+    options.fileName ?? "output.txt",
+    output,
+  );
   const omittedLines = truncation.totalLines - truncation.outputLines;
   const omittedBytes = truncation.totalBytes - truncation.outputBytes;
   let text = truncation.content;

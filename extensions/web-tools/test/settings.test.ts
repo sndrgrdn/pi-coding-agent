@@ -1,10 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {
-  parseEnumSetting,
-  parseIntegerSetting,
-  parseOnOff,
-} from "../settings.ts";
+import { parseEnumSetting, parseIntegerSetting, parseOnOff } from "../settings.ts";
 
 test("parseOnOff accepts on/off and falls back safely", () => {
   assert.equal(parseOnOff("on", false), true);
