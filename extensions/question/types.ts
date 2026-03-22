@@ -1,6 +1,6 @@
 export const QUESTION_EXTENSION_NAME = "question";
 export const OTHER_OPTION_LABEL = "_other_";
-export const OTHER_OPTION_DISPLAY_LABEL = "type your own answer";
+export const OTHER_OPTION_DISPLAY_LABEL = "Type your own answer";
 
 export interface QuestionOption {
   label: string;

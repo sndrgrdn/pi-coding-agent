@@ -59,7 +59,7 @@ class QuestionPromptComponent {
 
   private getEditorTheme(): EditorTheme {
     return {
-      borderColor: (value) => this.theme.fg("accent", value),
+      borderColor: () => "",
       selectList: {
         selectedPrefix: (value) => this.theme.fg("accent", value),
         selectedText: (value) => this.theme.fg("accent", value),
@@ -345,19 +345,17 @@ class QuestionPromptComponent {
     const otherIndex = question.options.length;
     const otherSelected = this.isOtherSelected(this.currentQuestionIndex);
     const otherActive = this.currentOptionIndex === otherIndex;
-    const otherDisplayLabel = this.theme.italic(OTHER_OPTION_DISPLAY_LABEL);
     wrapHanging(
-      this.renderOptionLine(otherDisplayLabel, otherIndex, otherActive, otherSelected, multiple),
+      this.renderOptionLine(OTHER_OPTION_DISPLAY_LABEL, otherIndex, otherActive, otherSelected, multiple),
       indent,
     );
 
     const customValue = this.customValues.get(this.currentQuestionIndex)?.trim() ?? "";
     if (otherSelected || this.editingOther) {
-      add(`${indent}${this.theme.fg("muted", "Custom answer:")}`);
       if (this.editingOther) {
         for (const line of this.renderEditor(contentWidth, indent)) add(line);
-      } else {
-        add(`${indent}${customValue || this.theme.fg("dim", "(empty)")}`);
+      } else if (customValue) {
+        add(`${indent}${customValue}`);
       }
     }
 
@@ -423,6 +421,6 @@ class QuestionPromptComponent {
   private renderEditor(width: number, indent: string): string[] {
     const editorWidth = Math.max(20, width - indent.length - 1);
     const rendered = this.editor.render(editorWidth);
-    return rendered.map((line) => `${indent}${line}`);
+    return rendered.filter((line) => line.trim() !== "").map((line) => `${indent}${line}`);
   }
 }
