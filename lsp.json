@@ -1,0 +1,38 @@
+{
+  "ruby": {
+    "command": "ruby-lsp",
+    "args": [],
+    "extensions": [".rb"],
+    "rootMarkers": ["Gemfile"],
+    "format": true,
+    "diagnostics": true,
+    "languageIds": {
+      ".rb": "ruby"
+    }
+  },
+  "typescript": {
+    "command": "typescript-language-server",
+    "args": ["--stdio"],
+    "extensions": [".ts", ".tsx", ".js", ".jsx"],
+    "rootMarkers": ["tsconfig.json", "package.json"],
+    "format": true,
+    "diagnostics": true,
+    "languageIds": {
+      ".ts": "typescript",
+      ".tsx": "typescriptreact",
+      ".js": "javascript",
+      ".jsx": "javascriptreact"
+    }
+  },
+  "erb": {
+    "command": "herb-language-server",
+    "args": ["--stdio"],
+    "extensions": [".erb"],
+    "rootMarkers": ["Gemfile"],
+    "format": true,
+    "diagnostics": true,
+    "languageIds": {
+      ".erb": "erb"
+    }
+  }
+}

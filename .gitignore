@@ -17,5 +17,6 @@
 !mcp.json
 !models.json
 !settings.json
+!lsp.json
 
 node_modules
