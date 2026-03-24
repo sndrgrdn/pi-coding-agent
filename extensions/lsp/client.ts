@@ -288,12 +288,19 @@ function rejectAfter(ms: number): Promise<never> {
 function resolveCommand(cmd: string, projectRoot?: string): string {
   if (cmd.startsWith("/")) return cmd; // already absolute
 
-  // Check project-local node_modules/.bin first
+  // Walk up from projectRoot checking node_modules/.bin at each level.
+  // Handles monorepos / nested package.json where the binary is hoisted.
   if (projectRoot) {
     const { existsSync } = require("node:fs") as typeof import("node:fs");
-    const { join } = require("node:path") as typeof import("node:path");
-    const local = join(projectRoot, "node_modules", ".bin", cmd);
-    if (existsSync(local)) return local;
+    const { join, dirname } = require("node:path") as typeof import("node:path");
+    let dir = projectRoot;
+    while (true) {
+      const local = join(dir, "node_modules", ".bin", cmd);
+      if (existsSync(local)) return local;
+      const parent = dirname(dir);
+      if (parent === dir) break;
+      dir = parent;
+    }
   }
 
   // Fall back to login shell resolution
