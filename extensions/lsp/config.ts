@@ -6,23 +6,11 @@ export interface ServerConfig {
   command: string;
   extensions: string[];
   rootMarkers: string[];
-}
-
-/** @deprecated Use ServerConfig instead. */
-export interface LanguageConfig {
-  command: string;
-  args?: string[];
-  extensions: string[];
-  format?: boolean;
-  diagnostics?: boolean;
+  /** Set to false to skip this server during matching. */
   enabled?: boolean;
-  rootMarkers?: string[];
-  env?: Record<string, string>;
-  initOptions?: Record<string, unknown>;
-  languageIds?: Record<string, string>;
 }
 
-export type LspConfig = Record<string, LanguageConfig>;
+export type LspConfig = Record<string, ServerConfig>;
 
 // --- Server definitions (export order = formatter priority) ---
 
@@ -64,8 +52,8 @@ export function loadConfig(): LspConfig {
 export function findLanguagesForFile(
   config: LspConfig,
   filePath: string,
-): [string, LanguageConfig][] {
-  const results: [string, LanguageConfig][] = [];
+): [string, ServerConfig][] {
+  const results: [string, ServerConfig][] = [];
   const seen = new Set<string>();
 
   // Compound extensions first (longest match wins)
@@ -92,15 +80,6 @@ export function findLanguagesForFile(
   }
 
   return results;
-}
-
-/** @deprecated Use findLanguagesForFile instead. */
-export function findLanguageForFile(
-  config: LspConfig,
-  filePath: string,
-): [string, LanguageConfig] | null {
-  const matches = findLanguagesForFile(config, filePath);
-  return matches[0] ?? null;
 }
 
 /** Built-in map for extensions whose languageId differs from the bare extension. */

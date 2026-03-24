@@ -2,7 +2,7 @@ import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
 import { resolve, basename } from "node:path";
 import { existsSync } from "node:fs";
-import { type LanguageConfig, loadConfig, findLanguagesForFile, findProjectRoot } from "./config";
+import { type ServerConfig, loadConfig, findLanguagesForFile, findProjectRoot } from "./config";
 import { LspClient } from "./client";
 import type { Diagnostic } from "vscode-languageserver-protocol";
 
@@ -38,7 +38,7 @@ export default function (pi: ExtensionAPI) {
 
   async function getClient(
     lang: string,
-    lc: LanguageConfig,
+    lc: ServerConfig,
     filePath: string,
     fallbackCwd: string,
   ): Promise<LspClient | null> {

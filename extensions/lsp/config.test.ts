@@ -1,7 +1,6 @@
 import { describe, test, expect, beforeEach, afterEach } from "vitest";
 import {
   getLanguageId,
-  findLanguageForFile,
   findLanguagesForFile,
   findProjectRoot,
   loadConfig,
@@ -70,100 +69,36 @@ describe("getLanguageId", () => {
   });
 });
 
-const testConfig: LspConfig = {
-  typescript: {
-    command: "typescript-language-server",
-    args: ["--stdio"],
-    extensions: [".ts", ".tsx"],
-    format: true,
-    diagnostics: true,
-  },
-  ruby: {
-    command: "ruby-lsp",
-    args: [],
-    extensions: [".rb", ".html.erb"],
-    format: false,
-    diagnostics: true,
-  },
-  disabled: {
-    command: "nope",
-    args: [],
-    extensions: [".txt"],
-    format: false,
-    diagnostics: false,
-    enabled: false,
-  },
-};
-
-describe("findLanguageForFile (deprecated, returns first match)", () => {
-  test("matches simple extensions to language config", () => {
-    const result = findLanguageForFile(testConfig, "/project/app.ts");
-    expect(result).not.toBeNull();
-    expect(result![0]).toBe("typescript");
-    expect(result![1].command).toBe("typescript-language-server");
-  });
-
-  test("matches compound extensions before simple ones", () => {
-    const result = findLanguageForFile(testConfig, "/project/view.html.erb");
-    expect(result).not.toBeNull();
-    expect(result![0]).toBe("ruby");
-  });
-
-  test("returns null for disabled languages", () => {
-    expect(findLanguageForFile(testConfig, "/project/notes.txt")).toBeNull();
-  });
-
-  test("returns null for unrecognized extensions", () => {
-    expect(findLanguageForFile(testConfig, "/project/data.csv")).toBeNull();
-  });
-
-  test("returns null for files with no extension", () => {
-    expect(findLanguageForFile(testConfig, "/project/Makefile")).toBeNull();
-  });
-});
-
 const multiServerConfig: LspConfig = {
   typescript: {
-    command: "typescript-language-server",
-    args: ["--stdio"],
+    command: "typescript-language-server --stdio",
     extensions: [".ts", ".tsx"],
-    format: true,
-    diagnostics: true,
+    rootMarkers: ["tsconfig.json"],
   },
   oxlint: {
     command: "oxlint-language-server",
-    args: [],
     extensions: [".ts", ".tsx", ".js"],
-    format: false,
-    diagnostics: true,
+    rootMarkers: ["package.json"],
   },
   biome: {
-    command: "biome",
-    args: ["lsp-proxy"],
+    command: "biome lsp-proxy",
     extensions: [".ts", ".js", ".json"],
-    format: true,
-    diagnostics: true,
+    rootMarkers: ["biome.json"],
   },
   ruby: {
     command: "ruby-lsp",
-    args: [],
     extensions: [".rb", ".html.erb"],
-    format: false,
-    diagnostics: true,
+    rootMarkers: ["Gemfile"],
   },
   erb: {
     command: "erb-lsp",
-    args: [],
     extensions: [".erb"],
-    format: true,
-    diagnostics: true,
+    rootMarkers: ["Gemfile"],
   },
   disabled_ts: {
     command: "disabled-ts-server",
-    args: [],
     extensions: [".ts"],
-    format: false,
-    diagnostics: true,
+    rootMarkers: [],
     enabled: false,
   },
 };
@@ -213,7 +148,7 @@ describe("findLanguagesForFile", () => {
     const results = findLanguagesForFile(multiServerConfig, "/project/app.ts");
     const tsMatch = results.find(([lang]) => lang === "typescript");
     const oxMatch = results.find(([lang]) => lang === "oxlint");
-    expect(tsMatch![1].command).toBe("typescript-language-server");
+    expect(tsMatch![1].command).toBe("typescript-language-server --stdio");
     expect(oxMatch![1].command).toBe("oxlint-language-server");
   });
 
