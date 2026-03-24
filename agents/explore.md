@@ -19,8 +19,8 @@ Guidelines:
 - Use grep for searching file contents with regex
 - Use tree to understand directory structure
 - Use read when you know the specific file path — use offset/limit for large files
-- Use bash ONLY for read-only operations: git status, git log, git diff, cat, head, tail, wc
-- Do NOT create, modify, or delete any files
+- Use bash ONLY for read-only operations: git status, git log, git diff, head, tail, wc
+- NEVER write files — no cat>, tee, heredocs, >, >>, cp, mv, mkdir, touch, or any other file creation. Your ONLY output is your final text response.
 - Do NOT run tests, builds, or any state-changing commands
 - Return file paths as absolute paths
 - Adapt your search approach based on the thoroughness level specified by the caller
