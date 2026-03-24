@@ -7,7 +7,7 @@ import {
   type MessageConnection,
 } from "vscode-jsonrpc/node";
 import type { Diagnostic, TextEdit } from "vscode-languageserver-protocol";
-import { extname } from "node:path";
+import { getLanguageId } from "./config";
 
 function fileUri(absPath: string): string {
   return `file://${absPath}`;
@@ -29,7 +29,23 @@ function applyEdits(source: string, edits: TextEdit[]): string {
   return lines.join("\n");
 }
 
+export interface LspClientOptions {
+  /** Command string, split on spaces (e.g. "typescript-language-server --stdio"). */
+  command: string;
+  rootPath: string;
+  log: (msg: string) => void;
+  env?: Record<string, string>;
+  initOptions?: Record<string, unknown>;
+}
+
 export class LspClient {
+  private command: string;
+  private args: string[];
+  private rootPath: string;
+  private log: (msg: string) => void;
+  private extraEnv: Record<string, string>;
+  private initOptions: Record<string, unknown>;
+
   private proc: ChildProcess | null = null;
   private conn: MessageConnection | null = null;
   private ready = false;
@@ -38,21 +54,27 @@ export class LspClient {
   private versions = new Map<string, number>();
   private diagStore = new Map<string, Diagnostic[]>();
   private diagListeners: Array<(uri: string, diags: Diagnostic[]) => void> = [];
+  private serverCapabilities: Record<string, unknown> = {};
+  private receivedDiagnostics = false;
 
-  constructor(
-    private command: string,
-    private args: string[],
-    private rootPath: string,
-    private log: (msg: string) => void,
-    private extraEnv: Record<string, string> = {},
-    private initOptions: Record<string, unknown> = {},
-    private languageIds: Record<string, string> = {},
-  ) { }
+  constructor(options: LspClientOptions) {
+    const parts = options.command.split(/\s+/);
+    this.command = parts[0]!;
+    this.args = parts.slice(1);
+    this.rootPath = options.rootPath;
+    this.log = options.log;
+    this.extraEnv = options.env ?? {};
+    this.initOptions = options.initOptions ?? {};
+  }
 
-  /** Derive the LSP languageId from a file path using configured languageIds, falling back to extension without dot. */
-  private resolveLanguageId(filePath: string): string {
-    const ext = extname(filePath);
-    return this.languageIds[ext] || ext.slice(1);
+  /** Whether the server advertised documentFormattingProvider. */
+  get canFormat(): boolean {
+    return this.serverCapabilities.documentFormattingProvider === true;
+  }
+
+  /** Whether the server has ever pushed publishDiagnostics. */
+  get hasDiagnostics(): boolean {
+    return this.receivedDiagnostics;
   }
 
   /** Ensure the server is running and initialized. Deduplicates concurrent calls. */
@@ -62,7 +84,10 @@ export class LspClient {
     if (this.starting) return this.starting;
 
     this.starting = this.start()
-      .then(() => { this.starting = null; return true; })
+      .then(() => {
+        this.starting = null;
+        return true;
+      })
       .catch((err: any) => {
         this.log(`LSP start failed (${this.command}): ${err?.message ?? err}`);
         this.dead = true;
@@ -96,7 +121,7 @@ export class LspClient {
     // vscode-jsonrpc's sendNotification doesn't await the write promise, so a
     // rejected write becomes an unhandled rejection.  We neutralise stdin so the
     // write callback never receives an error once the process is gone.
-    this.proc.stdin?.on("error", () => { });
+    this.proc.stdin?.on("error", () => {});
     const stdinRef = this.proc.stdin;
     this.proc.on("exit", (code) => {
       this.log(`LSP ${this.command} exited (code ${code})`);
@@ -113,7 +138,9 @@ export class LspClient {
       const c = this.conn;
       this.conn = null;
       this.proc = null;
-      try { c?.dispose(); } catch { }
+      try {
+        c?.dispose();
+      } catch {}
     });
 
     const reader = new StreamMessageReader(this.proc.stdout!);
@@ -122,6 +149,7 @@ export class LspClient {
 
     // Handle push diagnostics — use raw string to avoid version mismatch
     this.conn.onNotification("textDocument/publishDiagnostics", (params: any) => {
+      this.receivedDiagnostics = true;
       this.diagStore.set(params.uri, params.diagnostics ?? []);
       for (const fn of this.diagListeners) fn(params.uri, params.diagnostics ?? []);
     });
@@ -130,15 +158,19 @@ export class LspClient {
     this.conn.onRequest("client/registerCapability", () => null);
     this.conn.onRequest("client/unregisterCapability", () => null);
     this.conn.onRequest("workspace/configuration", () => [{}]);
-    this.conn.onNotification("window/logMessage", () => { });
-    this.conn.onNotification("window/showMessage", () => { });
+    this.conn.onNotification("window/logMessage", () => {});
+    this.conn.onNotification("window/showMessage", () => {});
 
-    this.conn.onError((err) => this.log(`Connection error (${this.command}): ${err[0]?.message ?? err}`));
-    this.conn.onClose(() => { this.ready = false; });
+    this.conn.onError((err) =>
+      this.log(`Connection error (${this.command}): ${err[0]?.message ?? err}`),
+    );
+    this.conn.onClose(() => {
+      this.ready = false;
+    });
     this.conn.listen();
 
     // Use raw string method names to avoid vscode-jsonrpc parameterStructures mismatch
-    await this.conn.sendRequest("initialize", {
+    const initResult: any = await this.conn.sendRequest("initialize", {
       processId: process.pid,
       capabilities: {
         textDocument: {
@@ -149,9 +181,12 @@ export class LspClient {
       },
       rootUri: fileUri(this.rootPath),
       workspaceFolders: [{ uri: fileUri(this.rootPath), name: "workspace" }],
-      ...(Object.keys(this.initOptions).length > 0 ? { initializationOptions: this.initOptions } : {}),
+      ...(Object.keys(this.initOptions).length > 0
+        ? { initializationOptions: this.initOptions }
+        : {}),
     });
 
+    this.serverCapabilities = initResult?.capabilities ?? {};
     this.conn.sendNotification("initialized", {});
     this.ready = true;
     this.log(`LSP ${this.command} initialized for ${this.rootPath}`);
@@ -166,7 +201,7 @@ export class LspClient {
     if (!this.versions.has(uri)) {
       this.versions.set(uri, 1);
       this.conn.sendNotification("textDocument/didOpen", {
-        textDocument: { uri, languageId: this.resolveLanguageId(filePath), version: 1, text },
+        textDocument: { uri, languageId: getLanguageId(filePath), version: 1, text },
       });
       return false; // first open, no prior diagnostics to invalidate
     } else {
@@ -262,12 +297,16 @@ export class LspClient {
         try {
           await Promise.race([conn.sendRequest("shutdown"), rejectAfter(2000)]);
           conn.sendNotification("exit");
-        } catch { }
+        } catch {}
       }
-      try { conn.dispose(); } catch { }
+      try {
+        conn.dispose();
+      } catch {}
     }
     if (proc && !proc.killed) {
-      try { proc.kill(); } catch { }
+      try {
+        proc.kill();
+      } catch {}
     }
   }
 }
@@ -313,6 +352,6 @@ function resolveCommand(cmd: string, projectRoot?: string): string {
       stdio: ["pipe", "pipe", "pipe"],
     }).trim();
     if (resolved && resolved.startsWith("/")) return resolved;
-  } catch { }
+  } catch {}
   return cmd; // fallback to bare name
 }

@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 
 const FAKE_LSP = join(__dirname, "test-fixtures", "fake-lsp.js");
 const NODE = process.execPath;
+const FAKE_CMD = `${NODE} ${FAKE_LSP}`;
 
 describe("LspClient", () => {
   let tmp: string;
@@ -22,7 +23,7 @@ describe("LspClient", () => {
   });
 
   test("starts and initializes successfully", async () => {
-    const client = new LspClient(NODE, [FAKE_LSP], tmp, log);
+    const client = new LspClient({ command: FAKE_CMD, rootPath: tmp, log });
     try {
       const ok = await client.ensureStarted();
       expect(ok).toBe(true);
@@ -32,7 +33,7 @@ describe("LspClient", () => {
   });
 
   test("ensureStarted returns true on repeated calls", async () => {
-    const client = new LspClient(NODE, [FAKE_LSP], tmp, log);
+    const client = new LspClient({ command: FAKE_CMD, rootPath: tmp, log });
     try {
       await client.ensureStarted();
       const ok = await client.ensureStarted();
@@ -43,14 +44,14 @@ describe("LspClient", () => {
   });
 
   test("shutdown completes without errors", async () => {
-    const client = new LspClient(NODE, [FAKE_LSP], tmp, log);
+    const client = new LspClient({ command: FAKE_CMD, rootPath: tmp, log });
     await client.ensureStarted();
     // Should not throw
     await client.shutdown();
   });
 
   test("ensureStarted returns false after shutdown", async () => {
-    const client = new LspClient(NODE, [FAKE_LSP], tmp, log);
+    const client = new LspClient({ command: FAKE_CMD, rootPath: tmp, log });
     await client.ensureStarted();
     await client.shutdown();
     // After shutdown, process is dead — ensureStarted should return false
@@ -58,7 +59,7 @@ describe("LspClient", () => {
   });
 
   test("getDiagnostics returns empty array for new file", async () => {
-    const client = new LspClient(NODE, [FAKE_LSP], tmp, log);
+    const client = new LspClient({ command: FAKE_CMD, rootPath: tmp, log });
     try {
       await client.ensureStarted();
       const filePath = join(tmp, "test.ts");
@@ -71,16 +72,13 @@ describe("LspClient", () => {
   });
 
   test("does not throw ERR_STREAM_DESTROYED when process dies abruptly", async () => {
-    const client = new LspClient(NODE, [FAKE_LSP], tmp, log);
+    const client = new LspClient({ command: FAKE_CMD, rootPath: tmp, log });
     await client.ensureStarted();
 
-    // Access the private connection to send kill notification
-    // We use the connection indirectly by triggering a file sync right as we kill
     const filePath = join(tmp, "test.ts");
     writeFileSync(filePath, "const x = 1;");
 
-    // Kill the process abruptly by sending SIGKILL to the underlying process
-    // Access internal proc via any cast (integration test — we own this code)
+    // Kill the process abruptly
     const proc = (client as any).proc;
     expect(proc).not.toBeNull();
     proc.kill("SIGKILL");
@@ -88,18 +86,41 @@ describe("LspClient", () => {
     // Wait for process to die
     await new Promise((resolve) => setTimeout(resolve, 200));
 
-    // Now try operations that would write to the dead stream — should not throw
-    // getDiagnostics calls syncDocument which writes to the connection
-    // This is the exact scenario that caused ERR_STREAM_DESTROYED
+    // Operations on dead stream should not throw
     await expect(client.getDiagnostics(filePath, 200)).resolves.toBeDefined();
-
-    // Shutdown should also not throw on dead process
     await expect(client.shutdown()).resolves.toBeUndefined();
   });
 
   test("returns false for nonexistent command", async () => {
-    const client = new LspClient("/nonexistent/binary", [], tmp, log);
+    const client = new LspClient({ command: "/nonexistent/binary", rootPath: tmp, log });
     const ok = await client.ensureStarted();
     expect(ok).toBe(false);
+  });
+
+  test("canFormat reflects server capabilities", async () => {
+    // fake-lsp.js reports documentFormattingProvider: false
+    const client = new LspClient({ command: FAKE_CMD, rootPath: tmp, log });
+    try {
+      expect(client.canFormat).toBe(false); // before start
+      await client.ensureStarted();
+      expect(client.canFormat).toBe(false); // server says no
+    } finally {
+      await client.shutdown();
+    }
+  });
+
+  test("hasDiagnostics becomes true after receiving push", async () => {
+    // fake-lsp.js pushes empty diagnostics on didOpen
+    const client = new LspClient({ command: FAKE_CMD, rootPath: tmp, log });
+    try {
+      expect(client.hasDiagnostics).toBe(false); // before any push
+      await client.ensureStarted();
+      const filePath = join(tmp, "test.ts");
+      writeFileSync(filePath, "const x = 1;");
+      await client.getDiagnostics(filePath, 500);
+      expect(client.hasDiagnostics).toBe(true); // after push
+    } finally {
+      await client.shutdown();
+    }
   });
 });

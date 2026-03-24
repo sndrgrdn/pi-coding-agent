@@ -1,46 +1,63 @@
-import { readFileSync, existsSync } from "node:fs";
-import { join, extname, dirname } from "node:path";
+import { existsSync } from "node:fs";
+import { extname, dirname, join } from "node:path";
 
+export interface ServerConfig {
+  /** Command string, split on spaces when spawning (e.g. "typescript-language-server --stdio"). */
+  command: string;
+  extensions: string[];
+  rootMarkers: string[];
+}
+
+/** @deprecated Use ServerConfig instead. */
 export interface LanguageConfig {
   command: string;
-  args: string[];
+  args?: string[];
   extensions: string[];
-  format: boolean;
-  diagnostics: boolean;
+  format?: boolean;
+  diagnostics?: boolean;
   enabled?: boolean;
-  /** Files that mark a project root (e.g. ["Gemfile"], ["tsconfig.json","package.json"]) */
   rootMarkers?: string[];
-  /** Extra env vars merged into spawn environment */
   env?: Record<string, string>;
-  /** Passed as initializationOptions during LSP initialize */
   initOptions?: Record<string, unknown>;
-  /** Maps file extension to LSP languageId (e.g. {".tsx": "typescriptreact"}). Falls back to extension without dot. */
   languageIds?: Record<string, string>;
 }
 
 export type LspConfig = Record<string, LanguageConfig>;
 
-const GLOBAL_CONFIG = join(
-  process.env.HOME || process.env.USERPROFILE || "~",
-  ".pi",
-  "agent",
-  "lsp.json",
-);
+// --- Server definitions (export order = formatter priority) ---
 
-function readJson(path: string): LspConfig | null {
-  if (!existsSync(path)) return null;
-  try {
-    return JSON.parse(readFileSync(path, "utf8"));
-  } catch {
-    return null;
-  }
-}
+export const oxfmt: ServerConfig = {
+  command: "oxfmt --lsp",
+  extensions: [".ts", ".tsx", ".js", ".jsx"],
+  rootMarkers: ["package.json"],
+};
 
-export function loadConfig(cwd: string): LspConfig {
-  const global = readJson(GLOBAL_CONFIG) ?? {};
-  const project = readJson(join(cwd, ".pi", "lsp.json")) ?? {};
-  // Project entries override global per-language
-  return { ...global, ...project };
+export const oxlint: ServerConfig = {
+  command: "oxlint --lsp",
+  extensions: [".ts", ".tsx", ".js", ".jsx"],
+  rootMarkers: ["package.json"],
+};
+
+export const tsserver: ServerConfig = {
+  command: "typescript-language-server --stdio",
+  extensions: [".ts", ".tsx", ".js", ".jsx"],
+  rootMarkers: ["tsconfig.json", "package.json"],
+};
+
+export const rubocop: ServerConfig = {
+  command: "bundle exec rubocop --lsp",
+  extensions: [".rb"],
+  rootMarkers: ["Gemfile"],
+};
+
+export const herb: ServerConfig = {
+  command: "herb-language-server --stdio",
+  extensions: [".erb"],
+  rootMarkers: ["Gemfile"],
+};
+
+export function loadConfig(): LspConfig {
+  return { oxfmt, oxlint, tsserver, rubocop, herb };
 }
 
 /** Match a file path to ALL matching language configs. Compound extensions (.html.erb) checked first. */
@@ -86,15 +103,24 @@ export function findLanguageForFile(
   return matches[0] ?? null;
 }
 
-/** Derive the LSP languageId from a file path, consulting config's languageIds map first. */
-export function getLanguageId(config: LspConfig, filePath: string): string {
+/** Built-in map for extensions whose languageId differs from the bare extension. */
+const LANGUAGE_ID_MAP: Record<string, string> = {
+  ".ts": "typescript",
+  ".tsx": "typescriptreact",
+  ".mts": "typescript",
+  ".cts": "typescript",
+  ".js": "javascript",
+  ".jsx": "javascriptreact",
+  ".mjs": "javascript",
+  ".cjs": "javascript",
+  ".rb": "ruby",
+  ".erb": "erb",
+};
+
+/** Derive the LSP languageId from a file path. Uses built-in map, falls back to extension without dot. */
+export function getLanguageId(filePath: string): string {
   const ext = extname(filePath);
-  const matches = findLanguagesForFile(config, filePath);
-  for (const [, lc] of matches) {
-    if (lc.languageIds?.[ext]) return lc.languageIds[ext];
-  }
-  // Fallback: extension without dot
-  return ext.slice(1);
+  return LANGUAGE_ID_MAP[ext] ?? ext.slice(1);
 }
 
 /** Walk up from a file to find the nearest directory containing a root marker. */

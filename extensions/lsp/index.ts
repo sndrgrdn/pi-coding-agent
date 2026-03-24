@@ -2,7 +2,7 @@ import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
 import { resolve, basename } from "node:path";
 import { existsSync } from "node:fs";
-import { type LspConfig, type LanguageConfig, loadConfig, findLanguagesForFile, findProjectRoot } from "./config";
+import { type LanguageConfig, loadConfig, findLanguagesForFile, findProjectRoot } from "./config";
 import { LspClient } from "./client";
 import type { Diagnostic } from "vscode-languageserver-protocol";
 
@@ -25,8 +25,8 @@ function formatDiagnostics(diags: Diagnostic[], filePath: string, serverName?: s
   return `${header}\n${lines.join("\n")}`;
 }
 
-export default function(pi: ExtensionAPI) {
-  let config: LspConfig = {};
+export default function (pi: ExtensionAPI) {
+  let config: ReturnType<typeof loadConfig> = {};
   const clients = new Map<string, LspClient>();
   const debugLog: string[] = [];
 
@@ -36,15 +36,22 @@ export default function(pi: ExtensionAPI) {
     if (debugLog.length > 200) debugLog.splice(0, debugLog.length - 200);
   }
 
-  async function getClient(lang: string, lc: LanguageConfig, filePath: string, fallbackCwd: string): Promise<LspClient | null> {
+  async function getClient(
+    lang: string,
+    lc: LanguageConfig,
+    filePath: string,
+    fallbackCwd: string,
+  ): Promise<LspClient | null> {
     const markers = lc.rootMarkers ?? [];
-    const root = markers.length > 0
-      ? findProjectRoot(filePath, markers, fallbackCwd)
-      : fallbackCwd;
+    const root = markers.length > 0 ? findProjectRoot(filePath, markers, fallbackCwd) : fallbackCwd;
     const key = `${lang}:${root}`;
     let client = clients.get(key);
     if (!client) {
-      client = new LspClient(lc.command, lc.args, root, log, lc.env ?? {}, lc.initOptions ?? {}, lc.languageIds ?? {});
+      client = new LspClient({
+        command: lc.command,
+        rootPath: root,
+        log,
+      });
       clients.set(key, client);
     }
     const ok = await client.ensureStarted();
@@ -53,9 +60,9 @@ export default function(pi: ExtensionAPI) {
 
   // --- Session lifecycle ---
 
-  pi.on("session_start", async (_event, ctx) => {
-    config = loadConfig(ctx.cwd);
-    const langs = Object.keys(config).filter((k) => config[k]?.enabled !== false);
+  pi.on("session_start", async (_event, _ctx) => {
+    config = loadConfig();
+    const langs = Object.keys(config);
     if (langs.length > 0) {
       log(`Loaded LSP config: ${langs.join(", ")}`);
     }
@@ -94,21 +101,22 @@ export default function(pi: ExtensionAPI) {
         ]);
         if (!client) continue;
 
-        // Format: only the first matching server with format: true
-        if (lc.format && !formatted) {
+        // Format: first server with formatting capability wins
+        if (client.canFormat && !formatted) {
           const changed = await client.format(filePath);
           if (changed) {
             formatted = true;
-            notes.push("Note: file was auto-formatted by LSP after this change. Re-read before further edits.");
+            notes.push(
+              "Note: file was auto-formatted by LSP after this change. Re-read before further edits.",
+            );
           }
         }
 
-        // Diagnostics: collect from all matching servers
-        if (lc.diagnostics) {
-          const diags = await client.getDiagnostics(filePath, 2000);
-          const text = formatDiagnostics(diags, filePath, matches.length > 1 ? lang : undefined);
-          if (text) notes.push(text);
-        }
+        // Diagnostics: all servers; short timeout for servers not yet known to produce diagnostics
+        const diagTimeout = client.hasDiagnostics ? 2000 : 200;
+        const diags = await client.getDiagnostics(filePath, diagTimeout);
+        const text = formatDiagnostics(diags, filePath, matches.length > 1 ? lang : undefined);
+        if (text) notes.push(text);
       } catch (err: any) {
         log(`tool_result hook error (${lang}): ${err?.message ?? err}`);
       }
@@ -145,20 +153,17 @@ export default function(pi: ExtensionAPI) {
 
       const matches = findLanguagesForFile(config, filePath);
       if (matches.length === 0) {
-        return { content: [{ type: "text", text: `No LSP server configured for ${basename(filePath)}.` }], details: {} };
+        return {
+          content: [{ type: "text", text: `No LSP server configured for ${basename(filePath)}.` }],
+          details: {},
+        };
       }
 
-      const diagMatches = matches.filter(([, lc]) => lc.diagnostics);
-      if (diagMatches.length === 0) {
-        const names = matches.map(([lang]) => lang).join(", ");
-        return { content: [{ type: "text", text: `Diagnostics disabled for ${names} in config.` }], details: {} };
-      }
-
-      const multiServer = diagMatches.length > 1;
+      const multiServer = matches.length > 1;
       const sections: string[] = [];
       const errors: string[] = [];
 
-      for (const [lang, lc] of diagMatches) {
+      for (const [lang, lc] of matches) {
         try {
           const client = await getClient(lang, lc, filePath, ctx.cwd);
           if (!client) {
@@ -201,11 +206,11 @@ export default function(pi: ExtensionAPI) {
   pi.registerCommand("lsp", {
     description: "Show LSP extension status and recent logs",
     handler: async (_args, ctx) => {
-      const langs = Object.entries(config).filter(([, lc]) => lc.enabled !== false);
+      const langs = Object.entries(config);
       const status = langs.map(([lang, lc]) => {
         const running = [...clients.entries()].find(([k]) => k.startsWith(`${lang}:`));
         const label = running ? `running (${running[0].split(":").slice(1).join(":")})` : "idle";
-        return `  ${lang}: ${lc.command} ${lc.args.join(" ")} [${label}]`;
+        return `  ${lang}: ${lc.command} [${label}]`;
       });
 
       const msg = [

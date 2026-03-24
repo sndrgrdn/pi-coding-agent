@@ -1,67 +1,72 @@
 import { describe, test, expect, beforeEach, afterEach } from "vitest";
-import { getLanguageId, findLanguageForFile, findLanguagesForFile, findProjectRoot, loadConfig, type LspConfig } from "./config";
+import {
+  getLanguageId,
+  findLanguageForFile,
+  findLanguagesForFile,
+  findProjectRoot,
+  loadConfig,
+  type LspConfig,
+} from "./config";
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
-const configWithLanguageIds: LspConfig = {
-  typescript: {
-    command: "typescript-language-server",
-    args: ["--stdio"],
-    extensions: [".ts", ".tsx", ".js", ".jsx"],
-    format: true,
-    diagnostics: true,
-    languageIds: {
-      ".ts": "typescript",
-      ".tsx": "typescriptreact",
-      ".js": "javascript",
-      ".jsx": "javascriptreact",
-    },
-  },
-  ruby: {
-    command: "ruby-lsp",
-    args: [],
-    extensions: [".rb"],
-    format: false,
-    diagnostics: true,
-    languageIds: { ".rb": "ruby" },
-  },
-  erb: {
-    command: "herb-language-server",
-    args: ["--stdio"],
-    extensions: [".erb"],
-    format: true,
-    diagnostics: true,
-    languageIds: { ".erb": "erb" },
-  },
-};
+describe("loadConfig", () => {
+  test("returns all server entries in export order", () => {
+    const config = loadConfig();
+    const names = Object.keys(config);
+    expect(names).toEqual(["oxfmt", "oxlint", "tsserver", "rubocop", "herb"]);
+  });
+
+  test("each entry is a valid ServerConfig", () => {
+    const config = loadConfig();
+    for (const [name, server] of Object.entries(config)) {
+      expect(server.command, `${name}.command`).toBeTypeOf("string");
+      expect(server.command.length, `${name}.command`).toBeGreaterThan(0);
+      expect(server.extensions, `${name}.extensions`).toBeInstanceOf(Array);
+      expect(server.rootMarkers, `${name}.rootMarkers`).toBeInstanceOf(Array);
+      expect(server.extensions.length, `${name}.extensions`).toBeGreaterThan(0);
+      expect(server.rootMarkers!.length, `${name}.rootMarkers`).toBeGreaterThan(0);
+    }
+  });
+
+  test("oxfmt handles JS/TS files", () => {
+    const config = loadConfig();
+    expect(config.oxfmt!.command).toBe("oxfmt --lsp");
+    expect(config.oxfmt!.extensions).toEqual([".ts", ".tsx", ".js", ".jsx"]);
+  });
+
+  test("tsserver handles JS/TS files", () => {
+    const config = loadConfig();
+    expect(config.tsserver!.command).toBe("typescript-language-server --stdio");
+    expect(config.tsserver!.extensions).toContain(".ts");
+  });
+});
 
 describe("getLanguageId", () => {
-  test("returns configured language IDs from languageIds map", () => {
-    expect(getLanguageId(configWithLanguageIds, "/project/app.ts")).toBe("typescript");
-    expect(getLanguageId(configWithLanguageIds, "/project/app.tsx")).toBe("typescriptreact");
-    expect(getLanguageId(configWithLanguageIds, "/project/app.rb")).toBe("ruby");
-    expect(getLanguageId(configWithLanguageIds, "/project/app.js")).toBe("javascript");
-    expect(getLanguageId(configWithLanguageIds, "/project/app.jsx")).toBe("javascriptreact");
-    expect(getLanguageId(configWithLanguageIds, "/project/view.erb")).toBe("erb");
+  test("resolves known JS/TS variant extensions", () => {
+    expect(getLanguageId("/project/app.ts")).toBe("typescript");
+    expect(getLanguageId("/project/app.tsx")).toBe("typescriptreact");
+    expect(getLanguageId("/project/app.js")).toBe("javascript");
+    expect(getLanguageId("/project/app.jsx")).toBe("javascriptreact");
   });
 
-  test("falls back to extension without dot for unknown extensions", () => {
-    expect(getLanguageId(configWithLanguageIds, "/project/file.py")).toBe("py");
-    expect(getLanguageId(configWithLanguageIds, "/project/file.go")).toBe("go");
+  test("resolves module variants", () => {
+    expect(getLanguageId("/project/app.mts")).toBe("typescript");
+    expect(getLanguageId("/project/app.cts")).toBe("typescript");
+    expect(getLanguageId("/project/app.mjs")).toBe("javascript");
+    expect(getLanguageId("/project/app.cjs")).toBe("javascript");
   });
 
-  test("falls back to extension without dot when languageIds not configured", () => {
-    const minimal: LspConfig = {
-      python: {
-        command: "pylsp",
-        args: [],
-        extensions: [".py"],
-        format: true,
-        diagnostics: true,
-      },
-    };
-    expect(getLanguageId(minimal, "/project/app.py")).toBe("py");
+  test("resolves ruby and erb", () => {
+    expect(getLanguageId("/project/app.rb")).toBe("ruby");
+    expect(getLanguageId("/project/view.erb")).toBe("erb");
+  });
+
+  test("falls back to extension without dot for unmapped extensions", () => {
+    expect(getLanguageId("/project/file.py")).toBe("py");
+    expect(getLanguageId("/project/file.go")).toBe("go");
+    expect(getLanguageId("/project/file.rs")).toBe("rs");
   });
 });
 
@@ -276,64 +281,5 @@ describe("findProjectRoot", () => {
 
     const root = findProjectRoot(filePath, ["package.json"], "/fallback");
     expect(root).toBe(join(tmp, "outer", "inner"));
-  });
-});
-
-describe("loadConfig", () => {
-  let tmp: string;
-
-  beforeEach(() => {
-    tmp = mkdtempSync(join(tmpdir(), "lsp-config-test-"));
-  });
-
-  afterEach(() => {
-    rmSync(tmp, { recursive: true, force: true });
-  });
-
-  test("project config is included when .pi/lsp.json exists", () => {
-    mkdirSync(join(tmp, ".pi"), { recursive: true });
-    writeFileSync(
-      join(tmp, ".pi", "lsp.json"),
-      JSON.stringify({
-        customlang: {
-          command: "custom-lsp",
-          args: [],
-          extensions: [".custom"],
-          format: false,
-          diagnostics: true,
-        },
-      }),
-    );
-
-    const config = loadConfig(tmp);
-    expect(config.customlang).toBeDefined();
-    expect(config.customlang!.command).toBe("custom-lsp");
-  });
-
-  test("returns config even when project has no .pi/lsp.json", () => {
-    // tmp has no .pi/lsp.json — should still return (at least global config or empty)
-    const config = loadConfig(tmp);
-    expect(config).toBeDefined();
-    expect(typeof config).toBe("object");
-  });
-
-  test("project config overrides global config for same language", () => {
-    mkdirSync(join(tmp, ".pi"), { recursive: true });
-    // Override typescript (which likely exists in global config)
-    writeFileSync(
-      join(tmp, ".pi", "lsp.json"),
-      JSON.stringify({
-        typescript: {
-          command: "my-custom-ts-server",
-          args: ["--custom"],
-          extensions: [".ts"],
-          format: false,
-          diagnostics: false,
-        },
-      }),
-    );
-
-    const config = loadConfig(tmp);
-    expect(config.typescript!.command).toBe("my-custom-ts-server");
   });
 });

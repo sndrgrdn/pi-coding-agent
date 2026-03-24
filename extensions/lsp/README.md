@@ -13,8 +13,8 @@ Parameters:
 Behavior:
 
 - resolves the file against the current working directory
-- looks up the matching LSP server from config based on file extension
-- starts the server lazily on first use, reuses running instances
+- looks up all matching LSP servers based on file extension
+- starts servers lazily on first use, reuses running instances
 - returns all diagnostics (errors, warnings, info, hints) with line/column, severity, and source
 - returns a message when no LSP server is configured for the file type
 
@@ -22,153 +22,87 @@ Behavior:
 
 After every `edit` or `write` tool call, the extension automatically:
 
-1. **Formats** the file via LSP if `format: true` for that language
-2. **Fetches diagnostics** and appends errors/warnings to the tool result if `diagnostics: true`
+1. **Formats** the file via the first matching server that advertises `documentFormattingProvider`
+2. **Fetches diagnostics** from all matching servers and appends errors/warnings to the tool result
 
 Only errors and warnings are shown in auto-injection. The `diagnostics` tool shows all severities.
 
 ## Configuration
 
-LSP servers are configured in JSON files. Two levels are merged (project overrides global per-language):
+LSP servers are defined as named exports in `config.ts`. Export order determines formatter priority — the first server that is running and has formatting capability wins. If the preferred formatter isn't installed, the next capable server takes over automatically.
 
-- **Global**: `~/.pi/agent/lsp.json`
-- **Project**: `<project-root>/.pi/lsp.json`
+### Built-in servers
 
-### Adding a new language
+| Name | Command | Extensions | Root markers |
+|------|---------|------------|-------------|
+| `oxfmt` | `oxfmt --lsp` | `.ts` `.tsx` `.js` `.jsx` | `package.json` |
+| `oxlint` | `oxlint --lsp` | `.ts` `.tsx` `.js` `.jsx` | `package.json` |
+| `tsserver` | `typescript-language-server --stdio` | `.ts` `.tsx` `.js` `.jsx` | `tsconfig.json` `package.json` |
+| `rubocop` | `bundle exec rubocop --lsp` | `.rb` | `Gemfile` |
+| `herb` | `herb-language-server --stdio` | `.erb` | `Gemfile` |
+
+### Adding a new server
 
 1. Install the LSP server binary and ensure it's on `$PATH` (shims from mise/nvm/rbenv work — the extension resolves commands via login shell)
-2. Add an entry to `~/.pi/agent/lsp.json` (global) or `<project>/.pi/lsp.json` (project-only)
+2. Add a named export to `config.ts` and include it in the `loadConfig()` return object
 3. The server starts automatically on first file access — no restart needed
 
-Entry format — each top-level key is a language name:
-
-```json
-{
-  "python": {
-    "command": "pylsp",
-    "args": [],
-    "extensions": [".py"],
-    "rootMarkers": ["pyproject.toml", "setup.py"],
-    "format": true,
-    "diagnostics": true,
-    "languageIds": {
-      ".py": "python"
-    }
-  }
-}
+```typescript
+export const python: ServerConfig = {
+  command: "pylsp",
+  extensions: [".py"],
+  rootMarkers: ["pyproject.toml", "setup.py"],
+};
 ```
 
-### Fields
+### ServerConfig fields
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `command` | `string` | yes | LSP server binary name or absolute path |
-| `args` | `string[]` | yes | CLI arguments (most servers need `["--stdio"]`) |
-| `extensions` | `string[]` | yes | File extensions this server handles, including the dot |
-| `rootMarkers` | `string[]` | no | Files that identify a project root (e.g. `["Gemfile"]`). Walks up from the file to find the nearest match. Falls back to cwd |
-| `format` | `boolean` | yes | Enable auto-formatting via LSP after edit/write |
-| `diagnostics` | `boolean` | yes | Enable diagnostics via LSP |
-| `enabled` | `boolean` | no | Set to `false` to disable without removing the entry. Default: `true` |
-| `languageIds` | `Record<string, string>` | no | Maps file extension to LSP `languageId` string. Falls back to extension without dot (e.g. `.py` → `"py"`) |
-| `env` | `Record<string, string>` | no | Extra environment variables merged into the server's spawn environment |
-| `initOptions` | `Record<string, unknown>` | no | Passed as `initializationOptions` during the LSP `initialize` handshake |
+| Field | Type | Description |
+|-------|------|-------------|
+| `command` | `string` | Full command string, split on spaces when spawning (e.g. `"pylsp"`, `"typescript-language-server --stdio"`) |
+| `extensions` | `string[]` | File extensions this server handles, including the dot |
+| `rootMarkers` | `string[]` | Files that identify a project root (e.g. `["Gemfile"]`). Walks up from the file to find the nearest match. Falls back to cwd |
 
-### languageIds
+### Capability detection
 
-The LSP protocol requires a `languageId` string when opening documents via `textDocument/didOpen`. This doesn't always match the file extension:
+Formatting and diagnostics are auto-detected from the LSP server — no config flags needed:
 
-| Extension | Correct languageId | Without config |
-|-----------|-------------------|----------------|
-| `.tsx` | `typescriptreact` | `tsx` ✗ |
-| `.jsx` | `javascriptreact` | `jsx` ✗ |
-| `.rb` | `ruby` | `rb` ✗ |
-| `.py` | `python` | `py` ✗ |
-| `.go` | `go` | `go` ✓ |
-| `.rs` | `rust` | `rs` ✗ |
-| `.erb` | `erb` | `erb` ✓ |
+- **Formatting**: Detected from `documentFormattingProvider` in the server's `initialize` response. First server in export order with this capability formats.
+- **Diagnostics**: Detected by tracking `textDocument/publishDiagnostics` push notifications. Servers that have never pushed diagnostics get a short timeout (200ms) to avoid blocking. Known diagnostic servers get the full timeout (2s).
 
-When the fallback (`extension without dot`) doesn't produce the correct value, add a `languageIds` entry. Some LSP servers are lenient, but many reject documents with wrong languageIds.
+### LanguageIds
+
+The LSP `languageId` is derived automatically from a built-in map. No per-server configuration needed:
+
+| Extension | languageId |
+|-----------|-----------|
+| `.ts` | `typescript` |
+| `.tsx` | `typescriptreact` |
+| `.mts` `.cts` | `typescript` |
+| `.js` | `javascript` |
+| `.jsx` | `javascriptreact` |
+| `.mjs` `.cjs` | `javascript` |
+| `.rb` | `ruby` |
+| `.erb` | `erb` |
+| anything else | extension without dot (e.g. `.py` → `py`) |
 
 ### Compound extensions
 
-Extensions like `".html.erb"` are matched before simple extensions. This lets you route `.html.erb` files to a different server than plain `.html` files:
+Extensions like `.html.erb` are matched before simple extensions. This lets you route `.html.erb` files to a different server than plain `.html` files.
 
-```json
-{
-  "erb": {
-    "command": "herb-language-server",
-    "args": ["--stdio"],
-    "extensions": [".erb", ".html.erb"],
-    "languageIds": { ".erb": "erb" }
-  }
-}
-```
+### Disabling a server
 
-### Disabling a language
-
-Set `enabled: false` to temporarily disable without removing:
-
-```json
-{
-  "ruby": {
-    "enabled": false,
-    "command": "ruby-lsp",
-    "args": [],
-    "extensions": [".rb"]
-  }
-}
-```
-
-### Full example
-
-Current `~/.pi/agent/lsp.json`:
-
-```json
-{
-  "ruby": {
-    "command": "ruby-lsp",
-    "args": [],
-    "extensions": [".rb"],
-    "rootMarkers": ["Gemfile"],
-    "format": true,
-    "diagnostics": true,
-    "languageIds": { ".rb": "ruby" }
-  },
-  "typescript": {
-    "command": "typescript-language-server",
-    "args": ["--stdio"],
-    "extensions": [".ts", ".tsx", ".js", ".jsx"],
-    "rootMarkers": ["tsconfig.json", "package.json"],
-    "format": true,
-    "diagnostics": true,
-    "languageIds": {
-      ".ts": "typescript",
-      ".tsx": "typescriptreact",
-      ".js": "javascript",
-      ".jsx": "javascriptreact"
-    }
-  },
-  "erb": {
-    "command": "herb-language-server",
-    "args": ["--stdio"],
-    "extensions": [".erb"],
-    "rootMarkers": ["Gemfile"],
-    "format": true,
-    "diagnostics": true,
-    "languageIds": { ".erb": "erb" }
-  }
-}
-```
+Remove or comment out the export in `config.ts` and remove it from the `loadConfig()` return object.
 
 ## Commands
 
 ### `/lsp`
 
-Shows LSP extension status: configured languages, running servers, and recent debug logs.
+Shows LSP extension status: configured servers, running instances, and recent debug logs.
 
 ## Architecture
 
-- One `LspClient` instance per (language, project root) pair
+- One `LspClient` instance per (server name, project root) pair
 - Clients start lazily on first file access and are reused across calls
 - Clients shut down gracefully on `session_shutdown`
 - Commands are resolved via login shell to pick up shims (mise, nvm, rbenv)
@@ -176,29 +110,25 @@ Shows LSP extension status: configured languages, running servers, and recent de
 - Auto-injection hooks into `tool_result` for `edit` and `write` tools
 - Format applies LSP `textDocument/formatting` edits directly to the file
 - Diagnostics use `textDocument/publishDiagnostics` push notifications with a timeout
+- Server capabilities stored from `initialize` response for runtime feature detection
 
-## Modifying functionality
-
-The extension is a standard pi extension with npm dependencies (`vscode-jsonrpc`, `vscode-languageserver-protocol`).
-
-### Key files
+## Key files
 
 | File | Purpose |
 |------|---------|
-| `~/.pi/agent/extensions/lsp/index.ts` | Extension entry: event hooks, `diagnostics` tool, `/lsp` command |
-| `~/.pi/agent/extensions/lsp/client.ts` | `LspClient` class: start, format, diagnostics, shutdown, command resolution |
-| `~/.pi/agent/extensions/lsp/config.ts` | Config loading, file→language matching, languageId resolution, project root detection |
-| `~/.pi/agent/lsp.json` | Global LSP server configuration |
-| `~/.pi/agent/extensions/lsp/config.test.ts` | Tests for config, matching, languageId, project root |
-| `~/.pi/agent/extensions/lsp/client.test.ts` | Tests for LspClient lifecycle |
+| `config.ts` | Server definitions, file→server matching, languageId resolution, project root detection |
+| `client.ts` | `LspClient` class: start, format, diagnostics, shutdown, capability detection, command resolution |
+| `index.ts` | Extension entry: event hooks, `diagnostics` tool, `/lsp` command |
+| `config.test.ts` | Tests for config, matching, languageId, project root |
+| `client.test.ts` | Tests for LspClient lifecycle and capabilities |
 
-### Common modifications
+## Common modifications
 
 **Change formatting options** (tab size, spaces vs tabs): In `client.ts`, find `textDocument/formatting` request — modify `tabSize` and `insertSpaces`.
 
 **Change diagnostic severity filter**: In `index.ts`, `formatDiagnostics` filters to severity ≤ 2 (errors + warnings) for auto-injection. The `diagnostics` tool shows all severities.
 
-**Change diagnostic wait timeout**: In `index.ts`, `getDiagnostics` is called with a timeout in ms (2000 for auto-injection, 3000 for the tool). Increase if servers are slow to respond.
+**Change diagnostic wait timeout**: In `index.ts`, `getDiagnostics` is called with a timeout in ms (200/2000 for auto-injection, 3000 for the tool). Increase if servers are slow to respond.
 
 **Add LSP capabilities**: In `client.ts`, the `initialize` request sends minimal capabilities. Add to `textDocument` capabilities for features like code actions, hover, completion.
 
