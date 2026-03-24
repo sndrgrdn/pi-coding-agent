@@ -1,6 +1,8 @@
 *
 !.gitignore
 
+!agents/
+!agents/**
 !extensions/
 !extensions/**
 !prompts/
