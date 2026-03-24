@@ -2,13 +2,13 @@ import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
 import { resolve, basename } from "node:path";
 import { existsSync } from "node:fs";
-import { type LspConfig, type LanguageConfig, loadConfig, findLanguageForFile, findProjectRoot } from "./config";
+import { type LspConfig, type LanguageConfig, loadConfig, findLanguagesForFile, findProjectRoot } from "./config";
 import { LspClient } from "./client";
 import type { Diagnostic } from "vscode-languageserver-protocol";
 
 const SEVERITY: Record<number, string> = { 1: "Error", 2: "Warning", 3: "Info", 4: "Hint" };
 
-function formatDiagnostics(diags: Diagnostic[], filePath: string): string {
+function formatDiagnostics(diags: Diagnostic[], filePath: string, serverName?: string): string {
   // Only errors & warnings
   const relevant = diags.filter((d) => d.severity != null && d.severity <= 2);
   if (relevant.length === 0) return "";
@@ -19,7 +19,10 @@ function formatDiagnostics(diags: Diagnostic[], filePath: string): string {
     const src = d.source ? ` [${d.source}]` : "";
     return `  ${sev} (line ${ln}:${ch})${src}: ${d.message}`;
   });
-  return `LSP diagnostics for ${basename(filePath)}:\n${lines.join("\n")}`;
+  const header = serverName
+    ? `LSP diagnostics for ${basename(filePath)} [${serverName}]:`
+    : `LSP diagnostics for ${basename(filePath)}:`;
+  return `${header}\n${lines.join("\n")}`;
 }
 
 export default function(pi: ExtensionAPI) {
@@ -77,35 +80,38 @@ export default function(pi: ExtensionAPI) {
     const filePath = resolve(ctx.cwd, rawPath.replace(/^@/, ""));
     if (!existsSync(filePath)) return;
 
-    const match = findLanguageForFile(config, filePath);
-    if (!match) return;
+    const matches = findLanguagesForFile(config, filePath);
+    if (matches.length === 0) return;
 
-    const [lang, lc] = match;
     const notes: string[] = [];
+    let formatted = false;
 
-    try {
-      const client = await Promise.race([
-        getClient(lang, lc, filePath, ctx.cwd),
-        new Promise<null>((r) => setTimeout(() => r(null), 15000)),
-      ]);
-      if (!client) return;
+    for (const [lang, lc] of matches) {
+      try {
+        const client = await Promise.race([
+          getClient(lang, lc, filePath, ctx.cwd),
+          new Promise<null>((r) => setTimeout(() => r(null), 15000)),
+        ]);
+        if (!client) continue;
 
-      // Format
-      if (lc.format) {
-        const changed = await client.format(filePath);
-        if (changed) {
-          notes.push("Note: file was auto-formatted by LSP after this change. Re-read before further edits.");
+        // Format: only the first matching server with format: true
+        if (lc.format && !formatted) {
+          const changed = await client.format(filePath);
+          if (changed) {
+            formatted = true;
+            notes.push("Note: file was auto-formatted by LSP after this change. Re-read before further edits.");
+          }
         }
-      }
 
-      // Diagnostics
-      if (lc.diagnostics) {
-        const diags = await client.getDiagnostics(filePath, 2000);
-        const text = formatDiagnostics(diags, filePath);
-        if (text) notes.push(text);
+        // Diagnostics: collect from all matching servers
+        if (lc.diagnostics) {
+          const diags = await client.getDiagnostics(filePath, 2000);
+          const text = formatDiagnostics(diags, filePath, matches.length > 1 ? lang : undefined);
+          if (text) notes.push(text);
+        }
+      } catch (err: any) {
+        log(`tool_result hook error (${lang}): ${err?.message ?? err}`);
       }
-    } catch (err: any) {
-      log(`tool_result hook error: ${err?.message ?? err}`);
     }
 
     if (notes.length > 0) {
@@ -137,40 +143,56 @@ export default function(pi: ExtensionAPI) {
         return { content: [{ type: "text", text: `File not found: ${params.path}` }], details: {} };
       }
 
-      const match = findLanguageForFile(config, filePath);
-      if (!match) {
+      const matches = findLanguagesForFile(config, filePath);
+      if (matches.length === 0) {
         return { content: [{ type: "text", text: `No LSP server configured for ${basename(filePath)}.` }], details: {} };
       }
 
-      const [lang, lc] = match;
-      if (!lc.diagnostics) {
-        return { content: [{ type: "text", text: `Diagnostics disabled for ${lang} in config.` }], details: {} };
+      const diagMatches = matches.filter(([, lc]) => lc.diagnostics);
+      if (diagMatches.length === 0) {
+        const names = matches.map(([lang]) => lang).join(", ");
+        return { content: [{ type: "text", text: `Diagnostics disabled for ${names} in config.` }], details: {} };
       }
 
-      try {
-        const client = await getClient(lang, lc, filePath, ctx.cwd);
-        if (!client) {
-          return { content: [{ type: "text", text: `LSP server for ${lang} failed to start.` }], details: {} };
+      const multiServer = diagMatches.length > 1;
+      const sections: string[] = [];
+      const errors: string[] = [];
+
+      for (const [lang, lc] of diagMatches) {
+        try {
+          const client = await getClient(lang, lc, filePath, ctx.cwd);
+          if (!client) {
+            errors.push(`LSP server for ${lang} failed to start.`);
+            continue;
+          }
+
+          const diags = await client.getDiagnostics(filePath, 3000);
+          if (diags.length === 0) continue;
+
+          // Show all severities for explicit tool calls
+          const lines = diags.map((d) => {
+            const sev = SEVERITY[d.severity ?? 1];
+            const ln = d.range.start.line + 1;
+            const ch = d.range.start.character + 1;
+            const src = d.source ? ` [${d.source}]` : "";
+            return `  ${sev} (line ${ln}:${ch})${src}: ${d.message}`;
+          });
+
+          const header = multiServer
+            ? `Diagnostics for ${params.path} [${lang}]:`
+            : `Diagnostics for ${params.path}:`;
+          sections.push(`${header}\n${lines.join("\n")}`);
+        } catch (err: any) {
+          errors.push(`Error getting diagnostics from ${lang}: ${err?.message ?? err}`);
         }
-
-        const diags = await client.getDiagnostics(filePath, 3000);
-        if (diags.length === 0) {
-          return { content: [{ type: "text", text: "No diagnostics found." }], details: {} };
-        }
-
-        // Show all severities for explicit tool calls
-        const lines = diags.map((d) => {
-          const sev = SEVERITY[d.severity ?? 1];
-          const ln = d.range.start.line + 1;
-          const ch = d.range.start.character + 1;
-          const src = d.source ? ` [${d.source}]` : "";
-          return `  ${sev} (line ${ln}:${ch})${src}: ${d.message}`;
-        });
-
-        return { content: [{ type: "text", text: `Diagnostics for ${params.path}:\n${lines.join("\n")}` }], details: {} };
-      } catch (err: any) {
-        return { content: [{ type: "text", text: `Error getting diagnostics: ${err?.message ?? err}` }], details: {} };
       }
+
+      if (sections.length === 0 && errors.length === 0) {
+        return { content: [{ type: "text", text: "No diagnostics found." }], details: {} };
+      }
+
+      const text = [...sections, ...errors].join("\n\n");
+      return { content: [{ type: "text", text }], details: {} };
     },
   });
 

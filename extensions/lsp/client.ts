@@ -76,7 +76,7 @@ export class LspClient {
   private async start(): Promise<void> {
     // Resolve the command to an absolute path first so spawn doesn't
     // rely on the (possibly stripped) PATH inside pi's process.
-    const resolvedCommand = resolveCommand(this.command);
+    const resolvedCommand = resolveCommand(this.command, this.rootPath);
 
     this.proc = spawn(resolvedCommand, this.args, {
       cwd: this.rootPath,
@@ -157,9 +157,9 @@ export class LspClient {
     this.log(`LSP ${this.command} initialized for ${this.rootPath}`);
   }
 
-  /** Sync file content with the server (didOpen or didChange). */
-  private syncDocument(filePath: string): void {
-    if (!this.conn) return;
+  /** Sync file content with the server (didOpen or didChange). Returns true if content was updated (didChange). */
+  private syncDocument(filePath: string): boolean {
+    if (!this.conn) return false;
     const uri = fileUri(filePath);
     const text = readFileSync(filePath, "utf8");
 
@@ -168,6 +168,7 @@ export class LspClient {
       this.conn.sendNotification("textDocument/didOpen", {
         textDocument: { uri, languageId: this.resolveLanguageId(filePath), version: 1, text },
       });
+      return false; // first open, no prior diagnostics to invalidate
     } else {
       const v = this.versions.get(uri)! + 1;
       this.versions.set(uri, v);
@@ -175,6 +176,7 @@ export class LspClient {
         textDocument: { uri, version: v },
         contentChanges: [{ text }],
       });
+      return true;
     }
   }
 
@@ -212,8 +214,13 @@ export class LspClient {
   /** Get diagnostics for a file, waiting up to `ms` for push notifications. */
   async getDiagnostics(filePath: string, ms = 2000): Promise<Diagnostic[]> {
     if (!this.conn || !this.ready) return [];
-    this.syncDocument(filePath);
+    const changed = this.syncDocument(filePath);
     const uri = fileUri(filePath);
+
+    // If the document changed, discard stale diagnostics and wait for fresh ones
+    if (changed) {
+      this.diagStore.delete(uri);
+    }
 
     const existing = this.diagStore.get(uri);
     if (existing && existing.length > 0) return existing;
@@ -270,12 +277,26 @@ function rejectAfter(ms: number): Promise<never> {
 }
 
 /**
- * Resolve a command name to an absolute path using the user's login shell.
- * Pi's process may not inherit mise/nvm/rbenv shims on PATH, so we ask a
- * login shell where the binary actually lives.
+ * Resolve a command name to an absolute path.
+ *
+ * Resolution order (mirrors nvim-lspconfig's approach for oxlint/biome):
+ *  1. Already absolute → use as-is
+ *  2. {projectRoot}/node_modules/.bin/{cmd} → local project binary
+ *  3. Login shell `command -v` → global install (mise/nvm/rbenv shims)
+ *  4. Bare command name fallback
  */
-function resolveCommand(cmd: string): string {
+function resolveCommand(cmd: string, projectRoot?: string): string {
   if (cmd.startsWith("/")) return cmd; // already absolute
+
+  // Check project-local node_modules/.bin first
+  if (projectRoot) {
+    const { existsSync } = require("node:fs") as typeof import("node:fs");
+    const { join } = require("node:path") as typeof import("node:path");
+    const local = join(projectRoot, "node_modules", ".bin", cmd);
+    if (existsSync(local)) return local;
+  }
+
+  // Fall back to login shell resolution
   try {
     const { execFileSync } = require("node:child_process") as typeof import("node:child_process");
     const shell = process.env.SHELL || "/bin/sh";
