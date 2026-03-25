@@ -33,24 +33,57 @@ const SubagentParams = Type.Object({
   ),
 });
 
-export default function(pi: ExtensionAPI) {
+/** Build the task tool description, dynamically listing discovered agents. */
+export function buildTaskDescription(agents: { name: string; description?: string }[]): string {
+  const agentList = agents
+    .map((a) => `- ${a.name}: ${a.description ?? "No description."}`)
+    .join("\n");
+
+  return [
+    "Launch a new agent to handle tasks autonomously in an isolated context window.",
+    "",
+    "Available agents:",
+    agentList,
+    "",
+    "When to use the Task tool:",
+    "- Complex multi-step tasks that benefit from focused context",
+    "- Codebase exploration and research across many files",
+    "- Parallel independent work units (launch multiple agents concurrently in a single message)",
+    "- Code changes that can be done independently from the main conversation",
+    "",
+    "When NOT to use the Task tool:",
+    "- Reading a specific file — use Read directly",
+    "- Searching for a specific symbol or pattern in 2-3 files — use Grep or Read directly",
+    "- Finding files by name — use Glob directly",
+    "- Simple single-step tasks you can do faster yourself",
+    "",
+    "Usage notes:",
+    "1. Launch multiple agents concurrently whenever possible; use a single message with multiple tool calls",
+    "2. Each invocation starts with a fresh context. Your prompt should be a detailed, self-contained task description. Specify exactly what the agent should return in its final message.",
+    "3. Clearly tell the agent whether you expect it to write code or just research, and how to verify its work (e.g., test commands).",
+    "4. The agent's result is not visible to the user. Summarize it for them.",
+    "5. The agent's outputs should generally be trusted.",
+  ].join("\n");
+}
+
+export default function (pi: ExtensionAPI) {
+  const taskDescription = buildTaskDescription(discoverAgents(process.cwd()));
+
   pi.registerTool({
     name: "task",
     label: "Task",
-    description:
-      "Spin up an isolated task with its own context window, tools, and model. " +
-      "Use for any focused work: codebase exploration, analysis, review, research, or gathering context before making changes. " +
-      "Tasks run in parallel when independent. " +
-      "Agent definitions live in ~/.pi/agent/agents/*.md (use task_list to discover them). " +
-      'Example: use the "explore" agent to understand a codebase area before making changes.',
+    description: taskDescription,
     promptSnippet:
       "Spin up a focused task with isolated context. Use task_list to see available agents.",
     promptGuidelines: [
-      "Use task for any focused work: exploration, analysis, review, research, or gathering context.",
-      "Default to task(agent='explore') for understanding code before making changes — don't manually read dozens of files.",
+      "Use task for any focused work: exploration, analysis, code changes, review, research, or multi-step tasks.",
+      "Use task(agent='explore') for fast read-only codebase search — finding files, grepping patterns, understanding structure.",
+      "Use task(agent='general') for tasks that need code changes, bash commands, or complex multi-step work.",
+      "Launch multiple tasks in parallel when they're independent (e.g., exploring different parts of a codebase, or making changes to unrelated files).",
       "Tasks have their own context window — results are a compressed summary, not raw file contents.",
       "Be specific in the task description so the agent knows exactly what to investigate or produce.",
-      "Launch multiple tasks in parallel when they're independent (e.g., exploring different parts of a codebase).",
+      "Clearly tell the agent whether you expect it to write code or just research, and how to verify its work (e.g., relevant test commands).",
+      "The agent's result is not visible to the user — summarize the outcome for them.",
     ],
     parameters: SubagentParams,
 
@@ -137,16 +170,16 @@ export default function(pi: ExtensionAPI) {
     parameters: Type.Object({}),
 
     async execute(_toolCallId, _params, _signal, _onUpdate, ctx) {
-      const agents = discoverAgents(ctx.cwd);
+      const discovered = discoverAgents(ctx.cwd);
 
-      if (agents.length === 0) {
+      if (discovered.length === 0) {
         return {
           content: [{ type: "text", text: "No agent definitions found." }],
           details: { agents: [] },
         };
       }
 
-      const lines = agents.map((a) => {
+      const lines = discovered.map((a) => {
         const badge = a.source === "project" ? " (project)" : "";
         const desc = a.description ? ` — ${a.description}` : "";
         const model = a.model ? ` [${a.model}]` : "";
@@ -156,17 +189,17 @@ export default function(pi: ExtensionAPI) {
 
       return {
         content: [{ type: "text", text: lines.join("\n") }],
-        details: { agents },
+        details: { agents: discovered },
       };
     },
 
     renderResult(result, _opts, theme) {
       const details = result.details as any;
-      const agents = details?.agents ?? [];
-      if (agents.length === 0) {
+      const listed = details?.agents ?? [];
+      if (listed.length === 0) {
         return new Text(theme.fg("dim", "No agent definitions found."), 0, 0);
       }
-      const lines = agents.map((a: any) => {
+      const lines = listed.map((a: any) => {
         const badge = a.source === "project" ? theme.fg("accent", " (project)") : "";
         const desc = a.description ? theme.fg("dim", ` — ${a.description}`) : "";
         const model = a.model ? theme.fg("dim", ` [${a.model}]`) : "";
