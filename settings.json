@@ -2,7 +2,7 @@
   "defaultProvider": "anthropic",
   "defaultModel": "claude-opus-4-6",
   "lastChangelogVersion": "0.62.0",
-  "defaultThinkingLevel": "xhigh",
+  "defaultThinkingLevel": "high",
   "hideThinkingBlock": false,
   "theme": "kanagawa-wave",
   "enabledModels": [
