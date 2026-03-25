@@ -7,8 +7,8 @@ import * as path from "node:path"
 import { buildRgArgs, buildTree, renderTree, FILE_LIMIT } from "./tree.ts"
 
 const treeSchema = Type.Object({
-  path: Type.Optional(Type.String({ description: "Directory to list (default: current directory)" })),
-  ignore: Type.Optional(Type.Array(Type.String(), { description: "Extra glob patterns to ignore" })),
+  path: Type.Optional(Type.String({ description: "The absolute path to the directory to list (must be absolute, not relative)" })),
+  ignore: Type.Optional(Type.Array(Type.String(), { description: "List of glob patterns to ignore" })),
 })
 
 type TreeSchema = typeof treeSchema
@@ -23,11 +23,13 @@ export default function(pi: ExtensionAPI) {
   const tool: ToolDefinition<TreeSchema, TreeDetails, Record<string, never>> = {
     name: "tree",
     label: "tree",
-    description:
-      `List files and directories as an indented tree. Uses ripgrep to respect .gitignore. ` +
-      `Common directories (node_modules, .git, dist, build, etc.) are excluded by default. ` +
-      `You can add extra ignore patterns via the \`ignore\` parameter. ` +
-      `Output is truncated to ${FILE_LIMIT} files or ${DEFAULT_MAX_BYTES / 1024}KB.`,
+    description: [
+      'Lists files and directories in a given path.',
+      'The path parameter must be absolute; omit it to use the current workspace directory.',
+      'You can optionally provide an array of glob patterns to ignore with the ignore parameter.',
+      'You should generally prefer the Glob and Grep tools, if you know which directories to search.'
+    ].join(" "),
+
     promptSnippet: "List files as an indented tree (ripgrep-powered, respects .gitignore)",
 
     parameters: treeSchema,

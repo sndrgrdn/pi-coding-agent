@@ -81,18 +81,47 @@ You are a scout agent.
     expect(agents[0]!.tools).toBeUndefined();
   });
 
-  test("parses extensions: true", () => {
-    writeFileSync(join(tmpDir, "a.md"), `---\nname: a\ndescription: d\nextensions: "true"\n---\nBody`);
-
-    const agents = loadAgentsFromDir(tmpDir, "user");
-    expect(agents[0]!.extensions).toBe("true");
+  test("parses thinking level from frontmatter", () => {
+    for (const level of ["off", "minimal", "low", "medium", "high", "xhigh"]) {
+      writeFileSync(
+        join(tmpDir, "a.md"),
+        `---\nname: a\ndescription: d\nthinking: ${level}\n---\nBody`,
+      );
+      const agents = loadAgentsFromDir(tmpDir, "user");
+      expect(agents[0]!.thinking).toBe(level);
+    }
   });
 
-  test("parses extensions: false", () => {
-    writeFileSync(join(tmpDir, "a.md"), `---\nname: a\ndescription: d\nextensions: "false"\n---\nBody`);
+  test("thinking defaults to undefined when not specified", () => {
+    writeFileSync(join(tmpDir, "a.md"), `---\nname: a\ndescription: d\n---\nBody`);
+    const agents = loadAgentsFromDir(tmpDir, "user");
+    expect(agents[0]!.thinking).toBeUndefined();
+  });
+
+  test("ignores invalid thinking level", () => {
+    writeFileSync(join(tmpDir, "a.md"), `---\nname: a\ndescription: d\nthinking: turbo\n---\nBody`);
+    const agents = loadAgentsFromDir(tmpDir, "user");
+    expect(agents[0]!.thinking).toBeUndefined();
+  });
+
+  test("parses extensions: true (YAML boolean)", () => {
+    writeFileSync(
+      join(tmpDir, "a.md"),
+      `---\nname: a\ndescription: d\nextensions: true\n---\nBody`,
+    );
 
     const agents = loadAgentsFromDir(tmpDir, "user");
-    expect(agents[0]!.extensions).toBe("false");
+    expect(agents[0]!.extensions).toBe(true);
+  });
+
+  test("parses extensions: false (YAML boolean)", () => {
+    writeFileSync(
+      join(tmpDir, "a.md"),
+      `---\nname: a\ndescription: d\nextensions: false\n---\nBody`,
+    );
+
+    const agents = loadAgentsFromDir(tmpDir, "user");
+    expect(agents[0]!.extensions).toBe(false);
   });
 
   test("resolves relative extension paths from agent directory", () => {
@@ -126,6 +155,112 @@ You are a scout agent.
     const agents = loadAgentsFromDir(tmpDir, "user");
     expect(agents[0]!.extensions).toBeUndefined();
   });
+
+  test("resolves npm: extension via project-local package with pi.extensions manifest", () => {
+    // Create a fake npm package at <cwd>/.pi/npm/node_modules/my-ext/
+    const pkgDir = join(tmpDir, ".pi", "npm", "node_modules", "my-ext");
+    mkdirSync(pkgDir, { recursive: true });
+    writeFileSync(join(pkgDir, "ext.ts"), "export default () => {}");
+    writeFileSync(
+      join(pkgDir, "package.json"),
+      JSON.stringify({ name: "my-ext", pi: { extensions: ["./ext.ts"] } }),
+    );
+
+    const agentsDir = join(tmpDir, "agents");
+    mkdirSync(agentsDir, { recursive: true });
+    writeFileSync(
+      join(agentsDir, "a.md"),
+      `---\nname: a\ndescription: d\nextensions: "npm:my-ext"\n---\nBody`,
+    );
+
+    const agents = loadAgentsFromDir(agentsDir, "user", tmpDir);
+    expect(agents[0]!.extensions).toEqual([join(pkgDir, "ext.ts")]);
+  });
+
+  test("resolves npm: extension with single entry point", () => {
+    const pkgDir = join(tmpDir, ".pi", "npm", "node_modules", "simple-ext");
+    mkdirSync(pkgDir, { recursive: true });
+    writeFileSync(join(pkgDir, "index.ts"), "export default () => {}");
+    writeFileSync(
+      join(pkgDir, "package.json"),
+      JSON.stringify({ name: "simple-ext", pi: { extensions: ["./index.ts"] } }),
+    );
+
+    const agentsDir = join(tmpDir, "agents");
+    mkdirSync(agentsDir, { recursive: true });
+    writeFileSync(
+      join(agentsDir, "a.md"),
+      `---\nname: a\ndescription: d\nextensions: "npm:simple-ext"\n---\nBody`,
+    );
+
+    const agents = loadAgentsFromDir(agentsDir, "user", tmpDir);
+    expect(agents[0]!.extensions).toEqual([join(pkgDir, "index.ts")]);
+  });
+
+  test("resolves npm: package with multiple extension entry points", () => {
+    const pkgDir = join(tmpDir, ".pi", "npm", "node_modules", "multi-ext");
+    mkdirSync(pkgDir, { recursive: true });
+    writeFileSync(join(pkgDir, "a.ts"), "export default () => {}");
+    writeFileSync(join(pkgDir, "b.ts"), "export default () => {}");
+    writeFileSync(
+      join(pkgDir, "package.json"),
+      JSON.stringify({ name: "multi-ext", pi: { extensions: ["./a.ts", "./b.ts"] } }),
+    );
+
+    const agentsDir = join(tmpDir, "agents");
+    mkdirSync(agentsDir, { recursive: true });
+    writeFileSync(
+      join(agentsDir, "a.md"),
+      `---\nname: a\ndescription: d\nextensions: "npm:multi-ext"\n---\nBody`,
+    );
+
+    const agents = loadAgentsFromDir(agentsDir, "user", tmpDir);
+    expect(agents[0]!.extensions).toEqual([join(pkgDir, "a.ts"), join(pkgDir, "b.ts")]);
+  });
+
+  test("drops npm: extension when package is not installed", () => {
+    writeFileSync(
+      join(tmpDir, "a.md"),
+      `---\nname: a\ndescription: d\nextensions: "npm:nonexistent-package"\n---\nBody`,
+    );
+
+    const agents = loadAgentsFromDir(tmpDir, "user", tmpDir);
+    expect(agents[0]!.extensions).toEqual([]);
+  });
+
+  test("drops https:// extension when git package is not installed", () => {
+    writeFileSync(
+      join(tmpDir, "a.md"),
+      `---\nname: a\ndescription: d\nextensions: "https://github.com/user/nonexistent-repo"\n---\nBody`,
+    );
+
+    const agents = loadAgentsFromDir(tmpDir, "user", tmpDir);
+    expect(agents[0]!.extensions).toEqual([]);
+  });
+
+  test("mixes local and npm: extensions, resolving each independently", () => {
+    // Local extension
+    const extDir = join(tmpDir, "ext");
+    mkdirSync(extDir, { recursive: true });
+    writeFileSync(join(extDir, "local.ts"), "export default () => {}");
+
+    // npm package
+    const pkgDir = join(tmpDir, ".pi", "npm", "node_modules", "pkg-ext");
+    mkdirSync(pkgDir, { recursive: true });
+    writeFileSync(join(pkgDir, "index.ts"), "export default () => {}");
+    writeFileSync(
+      join(pkgDir, "package.json"),
+      JSON.stringify({ name: "pkg-ext", pi: { extensions: ["./index.ts"] } }),
+    );
+
+    writeFileSync(
+      join(tmpDir, "a.md"),
+      `---\nname: a\ndescription: d\nextensions: "./ext/local.ts, npm:pkg-ext"\n---\nBody`,
+    );
+
+    const agents = loadAgentsFromDir(tmpDir, "user", tmpDir);
+    expect(agents[0]!.extensions).toEqual([join(extDir, "local.ts"), join(pkgDir, "index.ts")]);
+  });
 });
 
 describe("discoverAgents", () => {
@@ -136,8 +271,14 @@ describe("discoverAgents", () => {
     mkdirSync(userDir, { recursive: true });
     mkdirSync(projectDir, { recursive: true });
 
-    writeFileSync(join(userDir, "scout.md"), `---\nname: scout\ndescription: user scout\n---\nUser version`);
-    writeFileSync(join(projectDir, "scout.md"), `---\nname: scout\ndescription: project scout\n---\nProject version`);
+    writeFileSync(
+      join(userDir, "scout.md"),
+      `---\nname: scout\ndescription: user scout\n---\nUser version`,
+    );
+    writeFileSync(
+      join(projectDir, "scout.md"),
+      `---\nname: scout\ndescription: project scout\n---\nProject version`,
+    );
 
     // Load separately and merge like discoverAgents does
     const userAgents = loadAgentsFromDir(userDir, "user");

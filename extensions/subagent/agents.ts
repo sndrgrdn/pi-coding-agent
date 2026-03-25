@@ -5,34 +5,67 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { getAgentDir, parseFrontmatter } from "@mariozechner/pi-coding-agent";
+import {
+  DefaultPackageManager,
+  SettingsManager,
+  getAgentDir,
+  parseFrontmatter,
+} from "@mariozechner/pi-coding-agent";
+
+export type ThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh";
+
+const THINKING_LEVELS: ReadonlySet<string> = new Set<ThinkingLevel>([
+  "off",
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+]);
 
 export interface AgentConfig {
   name: string;
   description: string;
   tools?: string[];
   model?: string;
-  /** "false" (default) = --no-extensions, "true" = all, or comma-separated paths */
-  extensions?: "true" | "false" | string[];
+  thinking?: ThinkingLevel;
+  /** undefined/false = --no-extensions (default), true = all, string[] = specific extensions */
+  extensions?: boolean | string[];
   systemPrompt: string;
   source: "user" | "project";
   filePath: string;
 }
 
+// ── Extension resolution ────────────────────────────────────────────
+
+/** Cached package manager, keyed by cwd. */
+let _packageManager: { cwd: string; instance: InstanceType<typeof DefaultPackageManager> } | null =
+  null;
+
+function getPackageManager(cwd: string): InstanceType<typeof DefaultPackageManager> {
+  if (!_packageManager || _packageManager.cwd !== cwd) {
+    _packageManager = {
+      cwd,
+      instance: new DefaultPackageManager({
+        cwd,
+        agentDir: getAgentDir(),
+        settingsManager: SettingsManager.create(cwd, getAgentDir()),
+      }),
+    };
+  }
+  return _packageManager.instance;
+}
+
 /**
- * Resolve an extension entry to an absolute path.
- * Supports:
- * - Bare names: "glob" → <agentDir>/extensions/glob/index.ts (or .js)
- * - Relative paths: "./ext/foo.ts" → resolved from agent file dir
- * - Absolute paths: passed through
+ * Resolve a local extension entry to an absolute path.
+ * Bare names search extension directories (global, then project-local).
+ * Relative paths resolve from the agent file's directory.
  */
-function resolveExtensionPath(entry: string, agentDir: string, cwd: string): string | null {
-  // Absolute path — use as-is
+function resolveLocalExtensionPath(entry: string, agentDir: string, cwd: string): string | null {
   if (path.isAbsolute(entry)) {
     return fs.existsSync(entry) ? entry : null;
   }
 
-  // Relative path (starts with ./ or ../) — resolve from agent file dir
   if (entry.startsWith("./") || entry.startsWith("../")) {
     const resolved = path.resolve(agentDir, entry);
     return fs.existsSync(resolved) ? resolved : null;
@@ -45,7 +78,6 @@ function resolveExtensionPath(entry: string, agentDir: string, cwd: string): str
   ];
 
   for (const dir of extensionDirs) {
-    // Try dir/<name>/index.ts, dir/<name>/index.js, dir/<name>.ts, dir/<name>.js
     for (const candidate of [
       path.join(dir, entry, "index.ts"),
       path.join(dir, entry, "index.js"),
@@ -59,34 +91,79 @@ function resolveExtensionPath(entry: string, agentDir: string, cwd: string): str
   return null;
 }
 
-function resolveExtensionNames(entries: string[], agentDir: string, cwd: string): string[] {
+function isPackageSource(entry: string): boolean {
+  return /^(npm:|git:|https?:\/\/|ssh:\/\/)/.test(entry);
+}
+
+/**
+ * Resolve a package source (npm:, git:, URL) to extension entry points.
+ * Uses DefaultPackageManager to find the installed path and read the pi manifest.
+ */
+function resolvePackageExtensions(source: string, cwd: string): string[] {
+  const pm = getPackageManager(cwd);
+  const installedPath =
+    pm.getInstalledPath(source, "project") ?? pm.getInstalledPath(source, "user");
+  if (!installedPath) return [];
+
+  // These methods exist at runtime but are typed as private
+  const pmAny = pm as any;
+  const accumulator = pmAny.createAccumulator();
+  const metadata = { source, scope: "user" as const, origin: "package" as const };
+  pmAny.collectPackageResources(installedPath, accumulator, undefined, metadata);
+
+  return Array.from((accumulator.extensions as Map<string, unknown>).keys());
+}
+
+function resolveExtensions(entries: string[], agentDir: string, cwd: string): string[] {
   const resolved: string[] = [];
   for (const entry of entries) {
-    const p = resolveExtensionPath(entry, agentDir, cwd);
-    if (p) resolved.push(p);
+    if (isPackageSource(entry)) {
+      resolved.push(...resolvePackageExtensions(entry, cwd));
+    } else {
+      const p = resolveLocalExtensionPath(entry, agentDir, cwd);
+      if (p) resolved.push(p);
+    }
   }
   return resolved;
 }
 
-function parseExtensions(value: string | undefined): AgentConfig["extensions"] {
+// ── Frontmatter parsing ─────────────────────────────────────────────
+
+function parseThinking(value: unknown): ThinkingLevel | undefined {
   if (!value) return undefined;
-  const trimmed = value.trim();
-  if (trimmed === "true" || trimmed === "false") return trimmed;
-  return trimmed.split(",").map((s) => s.trim()).filter(Boolean);
+  const str = String(value).trim().toLowerCase();
+  return THINKING_LEVELS.has(str) ? (str as ThinkingLevel) : undefined;
 }
 
-export function loadAgentsFromDir(dir: string, source: "user" | "project", cwd?: string): AgentConfig[] {
-  const agents: AgentConfig[] = [];
-  if (!fs.existsSync(dir)) return agents;
+function parseExtensions(value: unknown): AgentConfig["extensions"] {
+  if (value === undefined) return undefined;
+  if (typeof value === "boolean") return value;
+  return String(value)
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
 
-  let entries: fs.Dirent[];
+// ── Agent loading ───────────────────────────────────────────────────
+
+export function loadAgentsFromDir(
+  dir: string,
+  source: "user" | "project",
+  cwd?: string,
+): AgentConfig[] {
+  if (!fs.existsSync(dir)) return [];
+
+  let dirEntries: fs.Dirent[];
   try {
-    entries = fs.readdirSync(dir, { withFileTypes: true });
+    dirEntries = fs.readdirSync(dir, { withFileTypes: true });
   } catch {
-    return agents;
+    return [];
   }
 
-  for (const entry of entries) {
+  const effectiveCwd = cwd ?? process.cwd();
+  const agents: AgentConfig[] = [];
+
+  for (const entry of dirEntries) {
     if (!entry.name.endsWith(".md")) continue;
     if (!entry.isFile() && !entry.isSymbolicLink()) continue;
 
@@ -108,14 +185,17 @@ export function loadAgentsFromDir(dir: string, source: "user" | "project", cwd?:
 
     const extensions = parseExtensions(frontmatter.extensions);
     const resolvedExtensions = Array.isArray(extensions)
-      ? resolveExtensionNames(extensions, dir, cwd ?? process.cwd())
+      ? resolveExtensions(extensions, dir, effectiveCwd)
       : extensions;
+
+    const thinking = parseThinking(frontmatter.thinking);
 
     agents.push({
       name: frontmatter.name,
       description: frontmatter.description,
       tools: tools && tools.length > 0 ? tools : undefined,
       model: frontmatter.model,
+      thinking,
       extensions: resolvedExtensions,
       systemPrompt: body,
       source,

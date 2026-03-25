@@ -25,19 +25,24 @@ describe("buildArgs", () => {
   });
 
   test("extensions: true omits --no-extensions", () => {
-    const args = buildArgs(agent({ extensions: "true" }));
+    const args = buildArgs(agent({ extensions: true }));
     expect(args).not.toContain("--no-extensions");
   });
 
   test("extensions: false adds --no-extensions", () => {
-    const args = buildArgs(agent({ extensions: "false" }));
+    const args = buildArgs(agent({ extensions: false }));
     expect(args).toContain("--no-extensions");
   });
 
   test("extensions as resolved paths adds --no-extensions and -e for each", () => {
-    const args = buildArgs(agent({ extensions: ["/abs/path/glob/index.ts", "/abs/path/grep/index.ts"] }));
+    const args = buildArgs(
+      agent({ extensions: ["/abs/path/glob/index.ts", "/abs/path/grep/index.ts"] }),
+    );
     expect(args).toContain("--no-extensions");
-    const eFlags = args.reduce((acc, v, i) => (v === "-e" ? [...acc, args[i + 1]] : acc), [] as (string | undefined)[]);
+    const eFlags = args.reduce(
+      (acc, v, i) => (v === "-e" ? [...acc, args[i + 1]] : acc),
+      [] as (string | undefined)[],
+    );
     expect(eFlags).toEqual(["/abs/path/glob/index.ts", "/abs/path/grep/index.ts"]);
   });
 
@@ -64,6 +69,25 @@ describe("buildArgs", () => {
     const args = buildArgs(agent());
     expect(args).not.toContain("--tools");
   });
+
+  test("includes --thinking when specified", () => {
+    const args = buildArgs(agent({ thinking: "high" }));
+    const idx = args.indexOf("--thinking");
+    expect(idx).toBeGreaterThan(-1);
+    expect(args[idx + 1]).toBe("high");
+  });
+
+  test("includes --thinking off", () => {
+    const args = buildArgs(agent({ thinking: "off" }));
+    const idx = args.indexOf("--thinking");
+    expect(idx).toBeGreaterThan(-1);
+    expect(args[idx + 1]).toBe("off");
+  });
+
+  test("omits --thinking when not specified", () => {
+    const args = buildArgs(agent());
+    expect(args).not.toContain("--thinking");
+  });
 });
 
 describe("getFinalOutput", () => {
@@ -76,9 +100,7 @@ describe("getFinalOutput", () => {
   });
 
   test("returns empty string when no assistant messages", () => {
-    const messages: Message[] = [
-      { role: "user", content: "hello" } as Message,
-    ];
+    const messages: Message[] = [{ role: "user", content: "hello" } as Message];
     expect(getFinalOutput(messages)).toBe("");
   });
 

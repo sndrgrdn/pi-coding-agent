@@ -61,7 +61,9 @@ export default function(pi: ExtensionAPI) {
         const available = discoverAgents(ctx.cwd);
         const names = available.map((a) => `"${a.name}"`).join(", ") || "none";
         return {
-          content: [{ type: "text", text: `Unknown agent: "${params.agent}". Available: ${names}` }],
+          content: [
+            { type: "text", text: `Unknown agent: "${params.agent}". Available: ${names}` },
+          ],
           details: { agent: params.agent, agentSource: "unknown" as const, result: null },
         };
       }
@@ -77,11 +79,18 @@ export default function(pi: ExtensionAPI) {
 
       const result = await runAgent(agent, params.task, cwd, signal, onProgress);
 
-      const isError = result.exitCode !== 0 || result.stopReason === "error" || result.stopReason === "aborted";
+      const isError =
+        result.exitCode !== 0 || result.stopReason === "error" || result.stopReason === "aborted";
       if (isError) {
-        const errorMsg = result.errorMessage || result.stderr || getFinalOutput(result.messages) || "(no output)";
+        const errorMsg =
+          result.errorMessage || result.stderr || getFinalOutput(result.messages) || "(no output)";
         return {
-          content: [{ type: "text", text: `Agent "${agent.name}" ${result.stopReason || "failed"}: ${errorMsg}` }],
+          content: [
+            {
+              type: "text",
+              text: `Agent "${agent.name}" ${result.stopReason || "failed"}: ${errorMsg}`,
+            },
+          ],
           details: { agent: agent.name, agentSource: agent.source, result },
           isError: true,
         };
@@ -94,7 +103,8 @@ export default function(pi: ExtensionAPI) {
     },
 
     renderCall(args, theme) {
-      let text = theme.fg("toolTitle", theme.bold("task ")) + theme.fg("accent", args.agent || "...");
+      let text =
+        theme.fg("toolTitle", theme.bold("task ")) + theme.fg("accent", args.agent || "...");
       if (args.cwd) text += theme.fg("dim", ` in ${args.cwd}`);
       if (args.task) {
         const preview = args.task.length > 80 ? `${args.task.slice(0, 80)}...` : args.task;
@@ -121,7 +131,8 @@ export default function(pi: ExtensionAPI) {
   pi.registerTool({
     name: "task_list",
     label: "List Agents",
-    description: "List all available task agent definitions from ~/.pi/agent/agents/ and .pi/agents/.",
+    description:
+      "List all available task agent definitions from ~/.pi/agent/agents/ and .pi/agents/.",
     promptSnippet: "List available task agents.",
     parameters: Type.Object({}),
 

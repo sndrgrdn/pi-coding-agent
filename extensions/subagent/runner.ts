@@ -51,7 +51,10 @@ function getPiInvocation(args: string[]): { command: string; args: string[] } {
   return { command: "pi", args };
 }
 
-async function writePromptFile(agentName: string, prompt: string): Promise<{ dir: string; path: string }> {
+async function writePromptFile(
+  agentName: string,
+  prompt: string,
+): Promise<{ dir: string; path: string }> {
   const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "pi-subagent-"));
   const safe = agentName.replace(/[^\w.-]+/g, "_");
   const filePath = path.join(dir, `prompt-${safe}.md`);
@@ -64,7 +67,7 @@ async function writePromptFile(agentName: string, prompt: string): Promise<{ dir
 /** Build CLI args for spawning a subagent (without the task message or prompt file). */
 export function buildArgs(agent: AgentConfig): string[] {
   const args: string[] = ["--mode", "json", "-p", "--no-session"];
-  if (agent.extensions === "true") {
+  if (agent.extensions === true) {
     // load all discovered extensions
   } else if (Array.isArray(agent.extensions)) {
     // sandbox + only the listed extensions
@@ -75,6 +78,7 @@ export function buildArgs(agent: AgentConfig): string[] {
     args.push("--no-extensions");
   }
   if (agent.model) args.push("--model", agent.model);
+  if (agent.thinking) args.push("--thinking", agent.thinking);
   if (agent.tools && agent.tools.length > 0) args.push("--tools", agent.tools.join(","));
   return args;
 }
@@ -195,8 +199,14 @@ export async function runAgent(
     if (wasAborted) throw new Error("Subagent was aborted");
     return result;
   } finally {
-    if (tmpPath) try { fs.unlinkSync(tmpPath); } catch { }
-    if (tmpDir) try { fs.rmdirSync(tmpDir); } catch { }
+    if (tmpPath)
+      try {
+        fs.unlinkSync(tmpPath);
+      } catch { }
+    if (tmpDir)
+      try {
+        fs.rmdirSync(tmpDir);
+      } catch { }
   }
 }
 
@@ -225,7 +235,8 @@ export function getDisplayItems(messages: Message[]): DisplayItem[] {
       for (const part of msg.content) {
         if (typeof part === "string") continue;
         if (part.type === "text") items.push({ type: "text", text: part.text });
-        else if (part.type === "toolCall") items.push({ type: "toolCall", name: part.name, args: part.arguments });
+        else if (part.type === "toolCall")
+          items.push({ type: "toolCall", name: part.name, args: part.arguments });
       }
     }
   }

@@ -19,11 +19,11 @@ import { buildGlobArgs, formatGlobOutput, FILE_LIMIT } from "./glob.ts"
 
 const globSchema = Type.Object({
   pattern: Type.String({
-    description: "Glob pattern to match files against",
+    description: "The glob pattern to match files against",
   }),
   path: Type.Optional(
     Type.String({
-      description: "Directory to search in. Defaults to the current working directory.",
+      description: 'The directory to search in. If not specified, the current working directory will be used. IMPORTANT: Omit this field to use the default directory. DO NOT enter "undefined" or "null" - simply omit it for the default behavior. Must be a valid directory path if provided.',
     }),
   ),
 })
@@ -49,13 +49,12 @@ export default function(pi: ExtensionAPI) {
     name: "glob",
     label: "glob",
     description: [
-      "Fast file pattern matching tool that works with any codebase size.",
-      'Supports glob patterns like "**/*.js" or "src/**/*.ts".',
-      "Returns matching file paths.",
-      "Use this tool when you need to find files by name patterns.",
-      `Output is capped at ${FILE_LIMIT} results.`,
-      "When doing open-ended search requiring multiple rounds of globbing and grepping, use the task tool instead.",
-      "You can call multiple tools in a single response — speculatively batch potentially useful searches.",
+      '- Fast file pattern matching tool that works with any codebase size',
+      '- Supports glob patterns like "**/*.js" or "src/**/*.ts"',
+      '- Returns matching file paths sorted by modification time',
+      '- Use this tool when you need to find files by name patterns',
+      '- When you are doing an open-ended search that may require multiple rounds of globbing and grepping, use the Task tool instead',
+      '- You have the capability to call multiple tools in a single response. It is always better to speculatively perform multiple searches as a batch that are potentially useful.'
     ].join("\n"),
     promptSnippet: "Find files by glob pattern (respects .gitignore)",
     parameters: globSchema,
