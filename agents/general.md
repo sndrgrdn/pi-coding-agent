@@ -1,8 +1,10 @@
 ---
 name: general
 description: |
-  General-purpose agent for researching complex questions and executing multi-step tasks. Use this agent to execute multiple units of work in parallel, implement code changes, run commands, and perform any task that requires both reading and writing. Unlike the explore agent, this agent has full tool access including file editing, writing, and bash.
+  General-purpose agent for researching complex questions and executing multi-step tasks. Use this agent to execute multiple units of work in parallel, implement code changes, run commands, and perform any task that requires both reading and writing.
 extensions: true
+model: anthropic/claude-sonnet-4-6
+thinking: medium
 ---
 
 You are a general-purpose coding agent running as a subtask. You have full access to all tools — reading, writing, editing files, running bash commands, and searching the codebase.

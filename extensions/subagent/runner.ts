@@ -29,6 +29,7 @@ export interface RunResult {
   stderr: string;
   usage: UsageStats;
   model?: string;
+  thinking?: string;
   stopReason?: string;
   errorMessage?: string;
 }
@@ -37,6 +38,15 @@ export type OnProgress = (result: RunResult) => void;
 
 function emptyUsage(): UsageStats {
   return { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, contextTokens: 0, turns: 0 };
+}
+
+const TERMINAL_MESSAGE_GRACE_MS = 1500;
+const FORCE_KILL_AFTER_GRACE_MS = 5000;
+
+export function isTerminalAssistantMessage(msg: Message): boolean {
+  if (msg.role !== "assistant") return false;
+  if (msg.stopReason && msg.stopReason !== "toolUse") return true;
+  return !msg.content.some((part) => typeof part !== "string" && part.type === "toolCall");
 }
 
 function getPiInvocation(args: string[]): { command: string; args: string[] } {
@@ -64,8 +74,13 @@ async function writePromptFile(
   return { dir, path: filePath };
 }
 
+export interface CallerDefaults {
+  model?: string;
+  thinking?: string;
+}
+
 /** Build CLI args for spawning a subagent (without the task message or prompt file). */
-export function buildArgs(agent: AgentConfig): string[] {
+export function buildArgs(agent: AgentConfig, callerDefaults?: CallerDefaults): string[] {
   const args: string[] = ["--mode", "json", "-p", "--no-session"];
   if (agent.extensions === true) {
     // load all discovered extensions
@@ -77,8 +92,10 @@ export function buildArgs(agent: AgentConfig): string[] {
     // default: clean sandbox, no extensions
     args.push("--no-extensions");
   }
-  if (agent.model) args.push("--model", agent.model);
-  if (agent.thinking) args.push("--thinking", agent.thinking);
+  const model = agent.model ?? callerDefaults?.model;
+  const thinking = agent.thinking ?? callerDefaults?.thinking;
+  if (model) args.push("--model", model);
+  if (thinking) args.push("--thinking", thinking);
   if (agent.tools && agent.tools.length > 0) args.push("--tools", agent.tools.join(","));
   return args;
 }
@@ -89,11 +106,15 @@ export async function runAgent(
   cwd: string,
   signal: AbortSignal | undefined,
   onProgress?: OnProgress,
+  callerDefaults?: CallerDefaults,
 ): Promise<RunResult> {
-  const args = buildArgs(agent);
+  const args = buildArgs(agent, callerDefaults);
 
   let tmpDir: string | null = null;
   let tmpPath: string | null = null;
+
+  const effectiveModel = agent.model ?? callerDefaults?.model;
+  const effectiveThinking = agent.thinking ?? callerDefaults?.thinking;
 
   const result: RunResult = {
     agent: agent.name,
@@ -102,7 +123,8 @@ export async function runAgent(
     messages: [],
     stderr: "",
     usage: emptyUsage(),
-    model: agent.model,
+    model: effectiveModel,
+    thinking: effectiveThinking,
   };
 
   const emitProgress = () => onProgress?.(result);
@@ -126,6 +148,50 @@ export async function runAgent(
         stdio: ["ignore", "pipe", "pipe"],
       });
       let buffer = "";
+      let resolved = false;
+      let sawTerminalAssistantMessage = false;
+      let terminalDrainTimer: ReturnType<typeof setTimeout> | null = null;
+      let forceKillTimer: ReturnType<typeof setTimeout> | null = null;
+      let abortListener: (() => void) | null = null;
+
+      const clearTimers = () => {
+        if (terminalDrainTimer) {
+          clearTimeout(terminalDrainTimer);
+          terminalDrainTimer = null;
+        }
+        if (forceKillTimer) {
+          clearTimeout(forceKillTimer);
+          forceKillTimer = null;
+        }
+      };
+
+      const safeResolve = (code: number) => {
+        if (resolved) return;
+        resolved = true;
+        clearTimers();
+        if (abortListener) signal?.removeEventListener("abort", abortListener);
+        if (buffer.trim()) processLine(buffer);
+        proc.stdout?.removeAllListeners("data");
+        proc.stderr?.removeAllListeners("data");
+        proc.stdout?.destroy();
+        proc.stderr?.destroy();
+        resolve(code);
+      };
+
+      const scheduleTerminalResolve = () => {
+        if (!sawTerminalAssistantMessage || resolved) return;
+        if (terminalDrainTimer) clearTimeout(terminalDrainTimer);
+        terminalDrainTimer = setTimeout(() => {
+          if (resolved) return;
+          if (proc.exitCode === null) {
+            proc.kill("SIGTERM");
+            forceKillTimer = setTimeout(() => {
+              if (proc.exitCode === null) proc.kill("SIGKILL");
+            }, FORCE_KILL_AFTER_GRACE_MS);
+          }
+          safeResolve(proc.exitCode ?? 0);
+        }, TERMINAL_MESSAGE_GRACE_MS);
+      };
 
       const processLine = (line: string) => {
         if (!line.trim()) return;
@@ -154,6 +220,10 @@ export async function runAgent(
             if (!result.model && msg.model) result.model = msg.model;
             if (msg.stopReason) result.stopReason = msg.stopReason;
             if (msg.errorMessage) result.errorMessage = msg.errorMessage;
+            if (isTerminalAssistantMessage(msg)) {
+              sawTerminalAssistantMessage = true;
+              scheduleTerminalResolve();
+            }
           }
           emitProgress();
         }
@@ -169,30 +239,17 @@ export async function runAgent(
         const lines = buffer.split("\n");
         buffer = lines.pop() || "";
         for (const line of lines) processLine(line);
+        scheduleTerminalResolve();
       });
 
       proc.stderr.on("data", (data) => {
         result.stderr += data.toString();
+        scheduleTerminalResolve();
       });
 
-      // Use 'exit' instead of 'close'. The 'close' event waits for all stdio
-      // streams to close, which hangs if the subprocess (or its extensions)
-      // spawned children that hold the piped stdout/stderr open (e.g. LSP
-      // servers, background bash commands). The 'exit' event fires as soon as
-      // the process itself terminates. A short drain delay captures any
-      // remaining buffered output.
-      let resolved = false;
-      const safeResolve = (code: number) => {
-        if (resolved) return;
-        resolved = true;
-        if (buffer.trim()) processLine(buffer);
-        proc.stdout?.removeAllListeners("data");
-        proc.stderr?.removeAllListeners("data");
-        proc.stdout?.destroy();
-        proc.stderr?.destroy();
-        resolve(code);
-      };
-
+      // Prefer process exit, but do not wait indefinitely once a terminal
+      // assistant message has already been emitted. Some extension stacks
+      // keep the child event loop alive after the final JSON event.
       proc.on("exit", (code) => {
         setTimeout(() => safeResolve(code ?? 0), 200);
       });
@@ -200,15 +257,15 @@ export async function runAgent(
       proc.on("error", () => safeResolve(1));
 
       if (signal) {
-        const kill = () => {
+        abortListener = () => {
           wasAborted = true;
           proc.kill("SIGTERM");
           setTimeout(() => {
-            if (!proc.killed) proc.kill("SIGKILL");
-          }, 5000);
+            if (proc.exitCode === null) proc.kill("SIGKILL");
+          }, FORCE_KILL_AFTER_GRACE_MS);
         };
-        if (signal.aborted) kill();
-        else signal.addEventListener("abort", kill, { once: true });
+        if (signal.aborted) abortListener();
+        else signal.addEventListener("abort", abortListener, { once: true });
       }
     });
 

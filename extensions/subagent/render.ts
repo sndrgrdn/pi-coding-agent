@@ -16,7 +16,7 @@ function formatTokens(count: number): string {
   return `${(count / 1000000).toFixed(1)}M`;
 }
 
-export function formatUsage(usage: UsageStats, model?: string): string {
+export function formatUsage(usage: UsageStats, model?: string, thinking?: string): string {
   const parts: string[] = [];
   if (usage.turns) parts.push(`${usage.turns} turn${usage.turns > 1 ? "s" : ""}`);
   if (usage.input) parts.push(`↑${formatTokens(usage.input)}`);
@@ -26,6 +26,7 @@ export function formatUsage(usage: UsageStats, model?: string): string {
   if (usage.cost) parts.push(`$${usage.cost.toFixed(4)}`);
   if (usage.contextTokens > 0) parts.push(`ctx:${formatTokens(usage.contextTokens)}`);
   if (model) parts.push(model);
+  if (thinking && thinking !== "off") parts.push(thinking);
   return parts.join(" ");
 }
 
@@ -34,11 +35,26 @@ function shortenPath(p: string): string {
   return p.startsWith(home) ? `~${p.slice(home.length)}` : p;
 }
 
+/** `verb <pattern> in <path>` — shared by grep / find / glob */
+const PATTERN_IN_PATH: Record<string, { defaultPattern: string; slashWrap?: boolean }> = {
+  grep: { defaultPattern: "", slashWrap: true },
+  find: { defaultPattern: "*" },
+  glob: { defaultPattern: "..." },
+};
+
 export function formatToolCall(
   toolName: string,
   args: Record<string, unknown>,
   fg: (color: any, text: string) => string,
 ): string {
+  const pinPath = PATTERN_IN_PATH[toolName];
+  if (pinPath) {
+    const pattern = (args.pattern as string) || pinPath.defaultPattern;
+    const rawPath = (args.path || ".") as string;
+    const accent = pinPath.slashWrap ? `/${pattern}/` : pattern;
+    return fg("muted", `${toolName} `) + fg("accent", accent) + fg("dim", ` in ${shortenPath(rawPath)}`);
+  }
+
   switch (toolName) {
     case "bash": {
       const command = (args.command as string) || "...";
@@ -57,16 +73,6 @@ export function formatToolCall(
         text += fg("warning", `:${start}${end ? `-${end}` : ""}`);
       }
       return fg("muted", "read ") + text;
-    }
-    case "grep": {
-      const pattern = (args.pattern || "") as string;
-      const rawPath = (args.path || ".") as string;
-      return fg("muted", "grep ") + fg("accent", `/${pattern}/`) + fg("dim", ` in ${shortenPath(rawPath)}`);
-    }
-    case "find": {
-      const pattern = (args.pattern || "*") as string;
-      const rawPath = (args.path || ".") as string;
-      return fg("muted", "find ") + fg("accent", pattern) + fg("dim", ` in ${shortenPath(rawPath)}`);
     }
     case "ls": {
       const rawPath = (args.path || ".") as string;
@@ -118,8 +124,13 @@ export function renderResult(
   }
 
   const fg = theme.fg.bind(theme);
-  const isError = result.exitCode !== 0 || result.stopReason === "error" || result.stopReason === "aborted";
-  const icon = options.isPartial ? theme.fg("warning", "⏳") : isError ? theme.fg("error", "✗") : theme.fg("success", "✓");
+  const isError =
+    result.exitCode !== 0 || result.stopReason === "error" || result.stopReason === "aborted";
+  const icon = options.isPartial
+    ? theme.fg("warning", "⏳")
+    : isError
+      ? theme.fg("error", "✗")
+      : theme.fg("success", "✓");
 
   if (options.expanded) {
     const container = new Container();
@@ -143,7 +154,9 @@ export function renderResult(
     } else {
       for (const item of displayItems) {
         if (item.type === "toolCall") {
-          container.addChild(new Text(fg("muted", "→ ") + formatToolCall(item.name, item.args, fg), 0, 0));
+          container.addChild(
+            new Text(fg("muted", "→ ") + formatToolCall(item.name, item.args, fg), 0, 0),
+          );
         }
       }
       if (finalOutput) {
@@ -153,7 +166,7 @@ export function renderResult(
       }
     }
 
-    const usageStr = formatUsage(result.usage, result.model);
+    const usageStr = formatUsage(result.usage, result.model, result.thinking);
     if (usageStr) {
       container.addChild(new Spacer(1));
       container.addChild(new Text(fg("dim", usageStr), 0, 0));
@@ -167,13 +180,16 @@ export function renderResult(
   if (isError && result.errorMessage) {
     text += `\n${fg("error", `Error: ${result.errorMessage}`)}`;
   } else if (displayItems.length === 0) {
-    text += options.isPartial ? `\n${fg("muted", "(running...)")}` : `\n${fg("muted", "(no output)")}`;
+    text += options.isPartial
+      ? `\n${fg("muted", "(running...)")}`
+      : `\n${fg("muted", "(no output)")}`;
   } else {
     text += `\n${renderDisplayItems(displayItems, fg, false, COLLAPSED_ITEM_COUNT)}`;
-    if (displayItems.length > COLLAPSED_ITEM_COUNT) text += `\n${fg("muted", "(Ctrl+O to expand)")}`;
+    if (displayItems.length > COLLAPSED_ITEM_COUNT)
+      text += `\n${fg("muted", "(Ctrl+O to expand)")}`;
   }
 
-  const usageStr = formatUsage(result.usage, result.model);
+  const usageStr = formatUsage(result.usage, result.model, result.thinking);
   if (usageStr) text += `\n${fg("dim", usageStr)}`;
   return new Text(text, 0, 0);
 }

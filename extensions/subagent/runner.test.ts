@@ -1,5 +1,10 @@
 import { describe, test, expect } from "vitest";
-import { buildArgs, getFinalOutput, getDisplayItems } from "./runner.js";
+import {
+  buildArgs,
+  getFinalOutput,
+  getDisplayItems,
+  isTerminalAssistantMessage,
+} from "./runner.js";
 import type { AgentConfig } from "./agents.js";
 import type { Message } from "@mariozechner/pi-ai";
 
@@ -87,6 +92,70 @@ describe("buildArgs", () => {
   test("omits --thinking when not specified", () => {
     const args = buildArgs(agent());
     expect(args).not.toContain("--thinking");
+  });
+
+  test("inherits model from caller defaults when agent has none", () => {
+    const args = buildArgs(agent({ model: undefined }), { model: "claude-sonnet-4-20250514" });
+    const idx = args.indexOf("--model");
+    expect(idx).toBeGreaterThan(-1);
+    expect(args[idx + 1]).toBe("claude-sonnet-4-20250514");
+  });
+
+  test("inherits thinking from caller defaults when agent has none", () => {
+    const args = buildArgs(agent({ thinking: undefined }), { thinking: "high" });
+    const idx = args.indexOf("--thinking");
+    expect(idx).toBeGreaterThan(-1);
+    expect(args[idx + 1]).toBe("high");
+  });
+
+  test("agent model overrides caller default", () => {
+    const args = buildArgs(agent({ model: "claude-haiku-4-5" }), {
+      model: "claude-sonnet-4-20250514",
+    });
+    const idx = args.indexOf("--model");
+    expect(args[idx + 1]).toBe("claude-haiku-4-5");
+  });
+
+  test("agent thinking overrides caller default", () => {
+    const args = buildArgs(agent({ thinking: "off" }), { thinking: "high" });
+    const idx = args.indexOf("--thinking");
+    expect(args[idx + 1]).toBe("off");
+  });
+});
+
+describe("isTerminalAssistantMessage", () => {
+  test("returns false for assistant tool-use turns", () => {
+    const message = {
+      role: "assistant",
+      stopReason: "toolUse",
+      content: [{ type: "toolCall", id: "1", name: "grep", arguments: { pattern: "foo" } }],
+    } as unknown as Message;
+
+    expect(isTerminalAssistantMessage(message)).toBe(false);
+  });
+
+  test("returns true for assistant stop turns", () => {
+    const message = {
+      role: "assistant",
+      stopReason: "stop",
+      content: [{ type: "text", text: "done" }],
+    } as unknown as Message;
+
+    expect(isTerminalAssistantMessage(message)).toBe(true);
+  });
+
+  test("treats assistant messages without tool calls as terminal fallback", () => {
+    const message = {
+      role: "assistant",
+      content: [{ type: "text", text: "done" }],
+    } as unknown as Message;
+
+    expect(isTerminalAssistantMessage(message)).toBe(true);
+  });
+
+  test("returns false for non-assistant messages", () => {
+    const message = { role: "user", content: "hello" } as Message;
+    expect(isTerminalAssistantMessage(message)).toBe(false);
   });
 });
 

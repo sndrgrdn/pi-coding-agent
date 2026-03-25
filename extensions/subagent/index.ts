@@ -10,7 +10,13 @@ import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Text } from "@mariozechner/pi-tui";
 import { Type } from "@sinclair/typebox";
 import { discoverAgents, findAgent } from "./agents.js";
-import { type RunResult, runAgent, getFinalOutput, getDisplayItems } from "./runner.js";
+import {
+  type RunResult,
+  type CallerDefaults,
+  runAgent,
+  getFinalOutput,
+  getDisplayItems,
+} from "./runner.js";
 import { renderResult } from "./render.js";
 
 interface SubagentDetails {
@@ -103,6 +109,11 @@ export default function (pi: ExtensionAPI) {
 
       const cwd = params.cwd ?? ctx.cwd;
 
+      const callerDefaults: CallerDefaults = {
+        model: ctx.model?.id,
+        thinking: pi.getThinkingLevel(),
+      };
+
       const onProgress = (partial: RunResult) => {
         onUpdate?.({
           content: [{ type: "text", text: getFinalOutput(partial.messages) || "(running...)" }],
@@ -110,7 +121,7 @@ export default function (pi: ExtensionAPI) {
         });
       };
 
-      const result = await runAgent(agent, params.task, cwd, signal, onProgress);
+      const result = await runAgent(agent, params.task, cwd, signal, onProgress, callerDefaults);
 
       const isError =
         result.exitCode !== 0 || result.stopReason === "error" || result.stopReason === "aborted";
