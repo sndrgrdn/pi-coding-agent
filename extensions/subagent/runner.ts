@@ -175,12 +175,29 @@ export async function runAgent(
         result.stderr += data.toString();
       });
 
-      proc.on("close", (code) => {
+      // Use 'exit' instead of 'close'. The 'close' event waits for all stdio
+      // streams to close, which hangs if the subprocess (or its extensions)
+      // spawned children that hold the piped stdout/stderr open (e.g. LSP
+      // servers, background bash commands). The 'exit' event fires as soon as
+      // the process itself terminates. A short drain delay captures any
+      // remaining buffered output.
+      let resolved = false;
+      const safeResolve = (code: number) => {
+        if (resolved) return;
+        resolved = true;
         if (buffer.trim()) processLine(buffer);
-        resolve(code ?? 0);
+        proc.stdout?.removeAllListeners("data");
+        proc.stderr?.removeAllListeners("data");
+        proc.stdout?.destroy();
+        proc.stderr?.destroy();
+        resolve(code);
+      };
+
+      proc.on("exit", (code) => {
+        setTimeout(() => safeResolve(code ?? 0), 200);
       });
 
-      proc.on("error", () => resolve(1));
+      proc.on("error", () => safeResolve(1));
 
       if (signal) {
         const kill = () => {
@@ -202,11 +219,11 @@ export async function runAgent(
     if (tmpPath)
       try {
         fs.unlinkSync(tmpPath);
-      } catch { }
+      } catch {}
     if (tmpDir)
       try {
         fs.rmdirSync(tmpDir);
-      } catch { }
+      } catch {}
   }
 }
 
