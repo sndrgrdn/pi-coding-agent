@@ -26,15 +26,18 @@ interface SubagentDetails {
 }
 
 const SubagentParams = Type.Object({
-  agent: Type.String({
-    description: "Name of the agent to invoke (matches filename in agents/ dir, e.g. 'explore')",
+  description: Type.String({
+    description: "A short (3-5 words) description of the task",
   }),
-  task: Type.String({
-    description: "Task to delegate — be specific about what the agent should do",
+  prompt: Type.String({
+    description: "The task for the agent to perform",
   }),
-  cwd: Type.Optional(
+  subagent_type: Type.String({
+    description: "The type of specialized agent to use for this task",
+  }),
+  command: Type.Optional(
     Type.String({
-      description: "Working directory for the agent (default: current project root)",
+      description: "The command that triggered this task",
     }),
   ),
 });
@@ -83,8 +86,8 @@ export default function (pi: ExtensionAPI) {
       "Spin up a focused task with isolated context. Use task_list to see available agents.",
     promptGuidelines: [
       "Use task for any focused work: exploration, analysis, code changes, review, research, or multi-step tasks.",
-      "Use task(agent='explore') for fast read-only codebase search — finding files, grepping patterns, understanding structure.",
-      "Use task(agent='general') for tasks that need code changes, bash commands, or complex multi-step work.",
+      "Use task(subagent_type='explore') for fast read-only codebase search — finding files, grepping patterns, understanding structure.",
+      "Use task(subagent_type='general') for tasks that need code changes, bash commands, or complex multi-step work.",
       "Launch multiple tasks in parallel when they're independent (e.g., exploring different parts of a codebase, or making changes to unrelated files).",
       "Tasks have their own context window — results are a compressed summary, not raw file contents.",
       "Be specific in the task description so the agent knows exactly what to investigate or produce.",
@@ -94,20 +97,20 @@ export default function (pi: ExtensionAPI) {
     parameters: SubagentParams,
 
     async execute(_toolCallId, params, signal, onUpdate, ctx) {
-      const agent = findAgent(ctx.cwd, params.agent);
+      const agent = findAgent(ctx.cwd, params.subagent_type);
 
       if (!agent) {
         const available = discoverAgents(ctx.cwd);
         const names = available.map((a) => `"${a.name}"`).join(", ") || "none";
         return {
           content: [
-            { type: "text", text: `Unknown agent: "${params.agent}". Available: ${names}` },
+            { type: "text", text: `Unknown agent: "${params.subagent_type}". Available: ${names}` },
           ],
-          details: { agent: params.agent, agentSource: "unknown" as const, result: null },
+          details: { agent: params.subagent_type, agentSource: "unknown" as const, result: null },
         };
       }
 
-      const cwd = params.cwd ?? ctx.cwd;
+      const cwd = ctx.cwd;
 
       const callerDefaults: CallerDefaults = {
         model: ctx.model?.id,
@@ -121,7 +124,7 @@ export default function (pi: ExtensionAPI) {
         });
       };
 
-      const result = await runAgent(agent, params.task, cwd, signal, onProgress, callerDefaults);
+      const result = await runAgent(agent, params.prompt, cwd, signal, onProgress, callerDefaults);
 
       const isError =
         result.exitCode !== 0 || result.stopReason === "error" || result.stopReason === "aborted";
@@ -147,10 +150,8 @@ export default function (pi: ExtensionAPI) {
     },
 
     renderCall(args, theme) {
-      let text =
-        theme.fg("toolTitle", theme.bold("task ")) + theme.fg("accent", args.agent || "...");
-      if (args.cwd) text += theme.fg("dim", ` in ${args.cwd}`);
-      return new Text(text, 0, 0);
+      const desc = args.description ?? "";
+      return new Text(`${theme.fg("text", theme.bold("Task"))} ${theme.fg("text", desc)}`, 0, 0);
     },
 
     renderResult(result, { expanded, isPartial }, theme, context) {
