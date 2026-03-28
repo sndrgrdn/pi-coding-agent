@@ -7,7 +7,7 @@ import { Container, Markdown, Spacer, Text } from "@mariozechner/pi-tui";
 import { getMarkdownTheme } from "@mariozechner/pi-coding-agent";
 import type { RunResult, UsageStats, DisplayItem } from "./runner.js";
 
-const COLLAPSED_ITEM_COUNT = 10;
+const COLLAPSED_ITEM_COUNT = 5;
 
 function formatTokens(count: number): string {
   if (count < 1000) return count.toString();
@@ -52,7 +52,9 @@ export function formatToolCall(
     const pattern = (args.pattern as string) || pinPath.defaultPattern;
     const rawPath = (args.path || ".") as string;
     const accent = pinPath.slashWrap ? `/${pattern}/` : pattern;
-    return fg("muted", `${toolName} `) + fg("accent", accent) + fg("dim", ` in ${shortenPath(rawPath)}`);
+    return (
+      fg("muted", `${toolName} `) + fg("accent", accent) + fg("dim", ` in ${shortenPath(rawPath)}`)
+    );
   }
 
   switch (toolName) {
@@ -181,15 +183,19 @@ export function renderResult(
     text += `\n${fg("error", `Error: ${result.errorMessage}`)}`;
   } else if (displayItems.length === 0) {
     text += options.isPartial
-      ? `\n${fg("muted", "(running...)")}`
-      : `\n${fg("muted", "(no output)")}`;
+      ? `\n\n${fg("muted", "(running...)")}`
+      : `\n\n${fg("muted", "(no output)")}`;
   } else {
-    text += `\n${renderDisplayItems(displayItems, fg, false, COLLAPSED_ITEM_COUNT)}`;
+    text += `\n\n${renderDisplayItems(displayItems, fg, false, COLLAPSED_ITEM_COUNT)}`;
     if (displayItems.length > COLLAPSED_ITEM_COUNT)
       text += `\n${fg("muted", "(Ctrl+O to expand)")}`;
   }
 
-  const usageStr = formatUsage(result.usage, result.model, result.thinking);
-  if (usageStr) text += `\n${fg("dim", usageStr)}`;
+  if (result.startedAt) {
+    const secs = (Date.now() - result.startedAt) / 1000;
+    const elapsed =
+      secs < 60 ? `${secs.toFixed(1)}s` : `${Math.floor(secs / 60)}m${Math.round(secs % 60)}s`;
+    text += `\n\n${fg("dim", elapsed)}`;
+  }
   return new Text(text, 0, 0);
 }

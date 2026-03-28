@@ -72,7 +72,7 @@ export function buildTaskDescription(agents: { name: string; description?: strin
   ].join("\n");
 }
 
-export default function (pi: ExtensionAPI) {
+export default function(pi: ExtensionAPI) {
   const taskDescription = buildTaskDescription(discoverAgents(process.cwd()));
 
   pi.registerTool({
@@ -157,7 +157,16 @@ export default function (pi: ExtensionAPI) {
       return new Text(text, 0, 0);
     },
 
-    renderResult(result, { expanded, isPartial }, theme) {
+    renderResult(result, { expanded, isPartial }, theme, context) {
+      if (isPartial && !context.state?._timer) {
+        if (!context.state) context.state = {};
+        context.state._timer = setInterval(() => context.invalidate(), 300);
+      }
+      if (!isPartial && context.state?._timer) {
+        clearInterval(context.state._timer);
+        context.state._timer = null;
+      }
+
       const details = result.details as SubagentDetails | undefined;
       const runResult = details?.result ?? null;
 

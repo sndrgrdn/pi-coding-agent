@@ -24,6 +24,7 @@ export interface UsageStats {
 export interface RunResult {
   agent: string;
   task: string;
+  startedAt: number;
   exitCode: number;
   messages: Message[];
   stderr: string;
@@ -119,6 +120,7 @@ export async function runAgent(
   const result: RunResult = {
     agent: agent.name,
     task,
+    startedAt: Date.now(),
     exitCode: 0,
     messages: [],
     stderr: "",
@@ -276,11 +278,11 @@ export async function runAgent(
     if (tmpPath)
       try {
         fs.unlinkSync(tmpPath);
-      } catch {}
+      } catch { }
     if (tmpDir)
       try {
         fs.rmdirSync(tmpDir);
-      } catch {}
+      } catch { }
   }
 }
 
