@@ -3,8 +3,7 @@
  */
 
 import * as os from "node:os";
-import { Container, Markdown, Spacer, Text } from "@mariozechner/pi-tui";
-import { getMarkdownTheme } from "@mariozechner/pi-coding-agent";
+import { Text } from "@mariozechner/pi-tui";
 import type { RunResult, UsageStats, DisplayItem } from "./runner.js";
 
 const COLLAPSED_ITEM_COUNT = 5;
@@ -120,7 +119,7 @@ export function renderResult(
   finalOutput: string,
   options: RenderResultOptions,
   theme: any,
-): Text | Container {
+): Text {
   if (!result) {
     return new Text(theme.fg("muted", "(no output)"), 0, 0);
   }
@@ -128,70 +127,26 @@ export function renderResult(
   const fg = theme.fg.bind(theme);
   const isError =
     result.exitCode !== 0 || result.stopReason === "error" || result.stopReason === "aborted";
-  const icon = options.isPartial
-    ? theme.fg("warning", "⏳")
-    : isError
-      ? theme.fg("error", "✗")
-      : theme.fg("success", "✓");
+  const limit = options.expanded ? undefined : COLLAPSED_ITEM_COUNT;
 
-  if (options.expanded) {
-    const container = new Container();
-    let header = `${icon} ${fg("toolTitle", theme.bold(result.agent))}`;
-    if (isError && result.stopReason) header += ` ${fg("error", `[${result.stopReason}]`)}`;
-    container.addChild(new Text(header, 0, 0));
-
-    if (isError && result.errorMessage) {
-      container.addChild(new Text(fg("error", `Error: ${result.errorMessage}`), 0, 0));
-    }
-
-    container.addChild(new Spacer(1));
-    container.addChild(new Text(fg("muted", "─── Task ───"), 0, 0));
-    container.addChild(new Text(fg("dim", result.task), 0, 0));
-
-    container.addChild(new Spacer(1));
-    container.addChild(new Text(fg("muted", "─── Output ───"), 0, 0));
-
-    if (displayItems.length === 0 && !finalOutput) {
-      container.addChild(new Text(fg("muted", "(no output)"), 0, 0));
-    } else {
-      for (const item of displayItems) {
-        if (item.type === "toolCall") {
-          container.addChild(
-            new Text(fg("muted", "→ ") + formatToolCall(item.name, item.args, fg), 0, 0),
-          );
-        }
-      }
-      if (finalOutput) {
-        container.addChild(new Spacer(1));
-        const mdTheme = getMarkdownTheme();
-        container.addChild(new Markdown(finalOutput.trim(), 0, 0, mdTheme));
-      }
-    }
-
-    const usageStr = formatUsage(result.usage, result.model, result.thinking);
-    if (usageStr) {
-      container.addChild(new Spacer(1));
-      container.addChild(new Text(fg("dim", usageStr), 0, 0));
-    }
-    return container;
-  }
-
-  // Collapsed view
+  // Body
   let text = "\n";
   if (isError && result.errorMessage) {
     text += fg("error", `Error: ${result.errorMessage}`);
   } else if (displayItems.length === 0) {
     text += options.isPartial ? fg("muted", "(running...)") : fg("muted", "(no output)");
   } else {
-    text += renderDisplayItems(displayItems, fg, false, COLLAPSED_ITEM_COUNT);
+    text += renderDisplayItems(displayItems, fg, options.expanded, limit);
   }
 
+  // Footer
   if (result.startedAt) {
     const secs = (Date.now() - result.startedAt) / 1000;
     const elapsed =
       secs < 60 ? `${secs.toFixed(1)}s` : `${Math.floor(secs / 60)}m${Math.round(secs % 60)}s`;
     const model = result.model ? `${result.model} · ` : "";
-    const expandHint = displayItems.length > COLLAPSED_ITEM_COUNT ? " (ctrl+o to expand)" : "";
+    const expandHint =
+      !options.expanded && displayItems.length > COLLAPSED_ITEM_COUNT ? " (ctrl+o to expand)" : "";
     text += `\n\n${fg("dim", model + elapsed + expandHint)}`;
   }
   return new Text(text, 0, 0);
