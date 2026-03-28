@@ -177,25 +177,22 @@ export function renderResult(
   }
 
   // Collapsed view
-  let text = `${icon} ${fg("toolTitle", theme.bold(result.agent))}`;
-  if (isError && result.stopReason) text += ` ${fg("error", `[${result.stopReason}]`)}`;
+  let text = "\n";
   if (isError && result.errorMessage) {
-    text += `\n${fg("error", `Error: ${result.errorMessage}`)}`;
+    text += fg("error", `Error: ${result.errorMessage}`);
   } else if (displayItems.length === 0) {
-    text += options.isPartial
-      ? `\n\n${fg("muted", "(running...)")}`
-      : `\n\n${fg("muted", "(no output)")}`;
+    text += options.isPartial ? fg("muted", "(running...)") : fg("muted", "(no output)");
   } else {
-    text += `\n\n${renderDisplayItems(displayItems, fg, false, COLLAPSED_ITEM_COUNT)}`;
-    if (displayItems.length > COLLAPSED_ITEM_COUNT)
-      text += `\n${fg("muted", "(Ctrl+O to expand)")}`;
+    text += renderDisplayItems(displayItems, fg, false, COLLAPSED_ITEM_COUNT);
   }
 
   if (result.startedAt) {
     const secs = (Date.now() - result.startedAt) / 1000;
     const elapsed =
       secs < 60 ? `${secs.toFixed(1)}s` : `${Math.floor(secs / 60)}m${Math.round(secs % 60)}s`;
-    text += `\n\n${fg("dim", elapsed)}`;
+    const model = result.model ? `${result.model} · ` : "";
+    const expandHint = displayItems.length > COLLAPSED_ITEM_COUNT ? " (ctrl+o to expand)" : "";
+    text += `\n\n${fg("dim", model + elapsed + expandHint)}`;
   }
   return new Text(text, 0, 0);
 }

@@ -150,10 +150,6 @@ export default function(pi: ExtensionAPI) {
       let text =
         theme.fg("toolTitle", theme.bold("task ")) + theme.fg("accent", args.agent || "...");
       if (args.cwd) text += theme.fg("dim", ` in ${args.cwd}`);
-      if (args.task) {
-        const preview = args.task.length > 80 ? `${args.task.slice(0, 80)}...` : args.task;
-        text += `\n  ${theme.fg("dim", preview)}`;
-      }
       return new Text(text, 0, 0);
     },
 
