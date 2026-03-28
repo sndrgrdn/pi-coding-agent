@@ -11,6 +11,7 @@
  */
 
 import type { AssistantMessage } from "@mariozechner/pi-ai";
+import { getThinkingColor } from "../lib/theme-utils.js";
 import { CustomEditor } from "@mariozechner/pi-coding-agent";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { getKeybindings, truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
@@ -101,7 +102,7 @@ class MinimalEditor extends CustomEditor {
 
   override render(width: number): string[] {
     const lines = super.render(width);
-    const bg = extractBgCode(this.surfaceTheme, "userMessageBg");
+    const bg = extractBgCode(this.surfaceTheme, "selectedBg");
     const floorFg = bgToFg(bg);
     const result: string[] = [];
 
@@ -158,18 +159,7 @@ export default function (pi: ExtensionAPI) {
       const level = pi.getThinkingLevel();
       const hasThinking = ctx.model?.reasoning;
 
-      const thinkingColorMap = {
-        minimal: "thinkingMinimal",
-        low: "thinkingLow",
-        medium: "thinkingMedium",
-        high: "thinkingHigh",
-        xhigh: "thinkingXhigh",
-      } as const;
-      const thinkingColor =
-        level in thinkingColorMap
-          ? thinkingColorMap[level as keyof typeof thinkingColorMap]
-          : "dim";
-      const levelColored = uiTheme.fg(thinkingColor, level);
+      const levelColored = uiTheme.fg(getThinkingColor(level), level);
 
       const dot = uiTheme.fg("dim", " · ");
       const showThinking = hasThinking && level !== "off";

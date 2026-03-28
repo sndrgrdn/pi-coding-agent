@@ -29,62 +29,27 @@ export function formatUsage(usage: UsageStats, model?: string, thinking?: string
   return parts.join(" ");
 }
 
+import { getThinkingColor } from "../../lib/theme-utils.js";
+import { getModelName } from "../../lib/model-utils.js";
+
 function shortenPath(p: string): string {
   const home = os.homedir();
   return p.startsWith(home) ? `~${p.slice(home.length)}` : p;
 }
-
-/** `verb <pattern> in <path>` — shared by grep / find / glob */
-const PATTERN_IN_PATH: Record<string, { defaultPattern: string; slashWrap?: boolean }> = {
-  grep: { defaultPattern: "", slashWrap: true },
-  find: { defaultPattern: "*" },
-  glob: { defaultPattern: "..." },
-};
 
 export function formatToolCall(
   toolName: string,
   args: Record<string, unknown>,
   fg: (color: any, text: string) => string,
 ): string {
-  const pinPath = PATTERN_IN_PATH[toolName];
-  if (pinPath) {
-    const pattern = (args.pattern as string) || pinPath.defaultPattern;
-    const rawPath = (args.path || ".") as string;
-    const accent = pinPath.slashWrap ? `/${pattern}/` : pattern;
-    return (
-      fg("muted", `${toolName} `) + fg("accent", accent) + fg("dim", ` in ${shortenPath(rawPath)}`)
-    );
-  }
+  const entries = Object.entries(args).filter(([, v]) => v !== undefined);
+  if (entries.length === 0) return fg("dim", toolName);
 
-  switch (toolName) {
-    case "bash": {
-      const command = (args.command as string) || "...";
-      const preview = command.length > 60 ? `${command.slice(0, 60)}...` : command;
-      return fg("muted", "$ ") + fg("toolOutput", preview);
-    }
-    case "read": {
-      const rawPath = (args.file_path || args.path || "...") as string;
-      const filePath = shortenPath(rawPath);
-      const offset = args.offset as number | undefined;
-      const limit = args.limit as number | undefined;
-      let text = fg("accent", filePath);
-      if (offset !== undefined || limit !== undefined) {
-        const start = offset ?? 1;
-        const end = limit !== undefined ? start + limit - 1 : "";
-        text += fg("warning", `:${start}${end ? `-${end}` : ""}`);
-      }
-      return fg("muted", "read ") + text;
-    }
-    case "ls": {
-      const rawPath = (args.path || ".") as string;
-      return fg("muted", "ls ") + fg("accent", shortenPath(rawPath));
-    }
-    default: {
-      const str = JSON.stringify(args);
-      const preview = str.length > 50 ? `${str.slice(0, 50)}...` : str;
-      return fg("accent", toolName) + fg("dim", ` ${preview}`);
-    }
-  }
+  const parts = entries.map(([k, v]) => {
+    const val = typeof v === "string" ? shortenPath(v) : JSON.stringify(v);
+    return entries.length === 1 ? val : `${k}=${val}`;
+  });
+  return fg("dim", `${toolName} ${parts.join(" ")}`);
 }
 
 function renderDisplayItems(
@@ -96,13 +61,13 @@ function renderDisplayItems(
   const toShow = limit ? items.slice(-limit) : items;
   const skipped = limit && items.length > limit ? items.length - limit : 0;
   let text = "";
-  if (skipped > 0) text += fg("muted", `... ${skipped} earlier items\n`);
+  if (skipped > 0) text += fg("dim", `... ${skipped} earlier items\n`);
   for (const item of toShow) {
     if (item.type === "text") {
       const preview = expanded ? item.text : item.text.split("\n").slice(0, 3).join("\n");
       text += `${fg("toolOutput", preview)}\n`;
     } else {
-      text += `${fg("muted", "→ ") + formatToolCall(item.name, item.args, fg)}\n`;
+      text += `${fg("toolOutput", "→ ") + formatToolCall(item.name, item.args, fg)}\n`;
     }
   }
   return text.trimEnd();
@@ -120,7 +85,7 @@ export function renderResult(
   theme: any,
 ): Text {
   if (!result) {
-    return new Text(theme.fg("muted", "(no output)"), 0, 0);
+    return new Text(theme.fg("dim", "(no output)"), 0, 0);
   }
 
   const fg = theme.fg.bind(theme);
@@ -133,7 +98,7 @@ export function renderResult(
   if (isError && result.errorMessage) {
     text += fg("error", `Error: ${result.errorMessage}`);
   } else if (displayItems.length === 0) {
-    text += options.isPartial ? fg("muted", "(running...)") : fg("muted", "(no output)");
+    text += options.isPartial ? fg("dim", "(running...)") : fg("dim", "(no output)");
   } else {
     text += renderDisplayItems(displayItems, fg, options.expanded, limit);
   }
@@ -143,13 +108,24 @@ export function renderResult(
     const secs = (Date.now() - result.startedAt) / 1000;
     const elapsed =
       secs < 60 ? `${secs.toFixed(1)}s` : `${Math.floor(secs / 60)}m${Math.round(secs % 60)}s`;
-    const model = result.model ? `${result.model} · ` : "";
-    const expandHint = options.expanded
-      ? " (ctrl+o to collapse)"
-      : displayItems.length > COLLAPSED_ITEM_COUNT
-        ? " (ctrl+o to expand)"
-        : "";
-    text += `\n\n${fg("dim", model + elapsed + expandHint)}`;
+    let info = "";
+    if (result.model) {
+      const name = getModelName(result.model);
+      info += fg("text", name);
+      if (result.thinking && result.thinking !== "off") {
+        const color = getThinkingColor(result.thinking);
+        info += ` ${fg(color, result.thinking)}`;
+      }
+      info += fg("dim", " · ");
+    }
+    info += fg("text", elapsed);
+    let expand = "";
+    if (!options.expanded && displayItems.length > COLLAPSED_ITEM_COUNT) {
+      expand = " (ctrl+o to expand)";
+    } else if (options.expanded) {
+      expand = " (ctrl+o to collapse)";
+    }
+    text += `\n\n${info}${fg("dim", expand)}`;
   }
   return new Text(text, 0, 0);
 }

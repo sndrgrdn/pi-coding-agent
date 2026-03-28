@@ -5,6 +5,8 @@
 !agents/**
 !extensions/
 !extensions/**
+!lib/
+!lib/**
 !prompts/
 !prompts/**
 !skills/
