@@ -24,7 +24,8 @@ export default function(pi: ExtensionAPI) {
       const text = (context.lastComponent as Text | undefined) ?? new Text("", 0, 0)
 
       if (context.isError) {
-        const msg = result.content.find((c: any) => c.type === "text")?.text || "Failed"
+        const first = result.content.find((c) => c.type === "text")
+        const msg = first?.type === "text" ? first.text : "Failed"
         text.setText(theme.fg("error", msg))
         return text
       }

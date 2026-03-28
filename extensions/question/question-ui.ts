@@ -9,6 +9,7 @@ import {
   visibleWidth,
   wrapTextWithAnsi,
 } from "@mariozechner/pi-tui"
+import { DEFAULT_PANEL_BG, getThemeVar, hexToBg, hexToFg } from "../../lib/theme-utils.js"
 import { normalizeAnswerSelection, replaceAnswerSelection } from "./helpers.ts"
 import { OTHER_OPTION_DISPLAY_LABEL, OTHER_OPTION_LABEL, type NormalizedQuestion } from "./types.ts"
 
@@ -285,7 +286,8 @@ class QuestionPromptComponent {
 
     const lines: string[] = []
     const question = this.getCurrentQuestion()
-    const contentWidth = Math.max(40, width - 2)
+    const px = 2
+    const contentWidth = Math.max(40, width - px * 2)
     const multiple = this.isCurrentQuestionMultiple()
     const add = (value = "") => lines.push(truncateToWidth(value, contentWidth))
 
@@ -394,9 +396,23 @@ class QuestionPromptComponent {
 
     this.cachedWidth = width
     this.dirty = false
-    this.cachedLines = lines.map(
-      (line) => line + " ".repeat(Math.max(0, width - visibleWidth(line))),
-    )
+    const bgHex = getThemeVar(this.theme, "editorPanelBg", DEFAULT_PANEL_BG)
+    const bgCode = hexToBg(bgHex)
+    const RESET = "\x1b[0m"
+    const margin = " ".repeat(px)
+    this.cachedLines = lines.map((line) => {
+      const fill = Math.max(0, width - visibleWidth(line) - px * 2)
+      const patched = line
+        .replaceAll("\x1b[0m", RESET + bgCode)
+        .replaceAll("\x1b[m", "\x1b[m" + bgCode)
+        .replaceAll("\x1b[49m", "\x1b[49m" + bgCode)
+      return bgCode + margin + patched + " ".repeat(fill) + margin + RESET
+    })
+    // Prepend blank line + append floor line
+    const blank = bgCode + " ".repeat(width) + RESET
+    const floor = hexToFg(bgHex) + "\u2580".repeat(width) + RESET
+    this.cachedLines.unshift(blank)
+    this.cachedLines.push(floor)
     return this.cachedLines
   }
 

@@ -11,33 +11,24 @@
  */
 
 import type { AssistantMessage } from "@mariozechner/pi-ai"
-import { getThinkingColor } from "../lib/theme-utils.js"
+import {
+  DEFAULT_PANEL_BG,
+  getThemeVar,
+  getThinkingColor,
+  hexToBg,
+  hexToFg,
+} from "../lib/theme-utils.js"
 import { CustomEditor } from "@mariozechner/pi-coding-agent"
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent"
+import type { ExtensionAPI, Theme } from "@mariozechner/pi-coding-agent"
 import { getKeybindings, truncateToWidth, visibleWidth } from "@mariozechner/pi-tui"
 import type { Keybinding } from "@mariozechner/pi-tui"
 
 // ── Helpers ─────────────────────────────────────────────────
 
-type BgTheme = {
-  bg: (color: any, text: string) => string
-}
-
 const ANSI_SGR_REGEX = new RegExp(`${String.fromCharCode(27)}\\[[^m]*m`, "g")
 
 function stripAnsi(s: string): string {
   return s.replace(ANSI_SGR_REGEX, "")
-}
-
-function extractBgCode(theme: BgTheme, color: any): string {
-  const probe = "\x00"
-  const wrapped = theme.bg(color, probe)
-  const probeIndex = wrapped.indexOf(probe)
-  return probeIndex === -1 ? "" : wrapped.substring(0, probeIndex)
-}
-
-function bgToFg(bgCode: string): string {
-  return bgCode.replace("\x1b[48;", "\x1b[38;")
 }
 
 function applyBg(line: string, bgCode: string, width: number): string {
@@ -92,18 +83,19 @@ function shortCwd(): string {
 // ── Editor ──────────────────────────────────────────────────
 
 class MinimalEditor extends CustomEditor {
-  private surfaceTheme: BgTheme
+  private activeTheme: Theme
   public infoLine: (width: number) => string = () => ""
 
-  constructor(tui: any, theme: any, kb: any, surfaceTheme: BgTheme) {
+  constructor(tui: any, theme: any, kb: any, activeTheme: Theme) {
     super(tui, theme, kb, { paddingX: 1 })
-    this.surfaceTheme = surfaceTheme
+    this.activeTheme = activeTheme
   }
 
   override render(width: number): string[] {
     const lines = super.render(width)
-    const bg = extractBgCode(this.surfaceTheme, "selectedBg")
-    const floorFg = bgToFg(bg)
+    const hex = getThemeVar(this.activeTheme, "editorPanelBg", DEFAULT_PANEL_BG)
+    const bg = hexToBg(hex)
+    const floorFg = hexToFg(hex)
     const result: string[] = []
 
     for (const line of lines) {
@@ -131,7 +123,7 @@ class MinimalEditor extends CustomEditor {
 
 // ── Extension ───────────────────────────────────────────────
 
-export default function (pi: ExtensionAPI) {
+export default function(pi: ExtensionAPI) {
   pi.on("session_start", async (_event, ctx) => {
     const uiTheme = ctx.ui.theme
 
@@ -191,7 +183,7 @@ export default function (pi: ExtensionAPI) {
 
       return {
         dispose: unsub,
-        invalidate() {},
+        invalidate() { },
         render(width: number): string[] {
           const branch = footerData.getGitBranch()
           const cwd = shortCwd()
