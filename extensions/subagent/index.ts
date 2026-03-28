@@ -9,7 +9,7 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent"
 import { Text } from "@mariozechner/pi-tui"
 import { Type } from "@sinclair/typebox"
-import { discoverAgents, findAgent } from "./agents.js"
+import { discoverAgents } from "./agents.js"
 import {
   type RunResult,
   type CallerDefaults,
@@ -110,11 +110,11 @@ export default function(pi: ExtensionAPI) {
     },
 
     async execute(_toolCallId, params, signal, onUpdate, ctx) {
-      const agent = findAgent(ctx.cwd, params.subagent_type)
+      const allAgents = discoverAgents(ctx.cwd).filter((a) => a.name !== parentAgent)
+      const agent = allAgents.find((a) => a.name === params.subagent_type)
 
       if (!agent) {
-        const available = discoverAgents(ctx.cwd)
-        const names = available.map((a) => `"${a.name}"`).join(", ") || "none"
+        const names = allAgents.map((a) => `"${a.name}"`).join(", ") || "none"
         return {
           content: [
             { type: "text", text: `Unknown agent: "${params.subagent_type}". Available: ${names}` },
@@ -207,7 +207,7 @@ export default function(pi: ExtensionAPI) {
     },
 
     async execute(_toolCallId, _params, _signal, _onUpdate, ctx) {
-      const discovered = discoverAgents(ctx.cwd)
+      const discovered = discoverAgents(ctx.cwd).filter((a) => a.name !== parentAgent)
 
       if (discovered.length === 0) {
         return {
