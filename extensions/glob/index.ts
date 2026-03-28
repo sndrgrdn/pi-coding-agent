@@ -23,7 +23,8 @@ const globSchema = Type.Object({
   }),
   path: Type.Optional(
     Type.String({
-      description: 'The directory to search in. If not specified, the current working directory will be used. IMPORTANT: Omit this field to use the default directory. DO NOT enter "undefined" or "null" - simply omit it for the default behavior. Must be a valid directory path if provided.',
+      description:
+        'The directory to search in. If not specified, the current working directory will be used. IMPORTANT: Omit this field to use the default directory. DO NOT enter "undefined" or "null" - simply omit it for the default behavior. Must be a valid directory path if provided.',
     }),
   ),
 })
@@ -40,24 +41,34 @@ async function findRg(): Promise<string> {
   try {
     return execSync("which rg", { encoding: "utf-8" }).trim()
   } catch {
-    throw new Error("ripgrep (rg) not found. Install it: https://github.com/BurntSushi/ripgrep#installation")
+    throw new Error(
+      "ripgrep (rg) not found. Install it: https://github.com/BurntSushi/ripgrep#installation",
+    )
   }
 }
 
-export default function(pi: ExtensionAPI) {
+export default function (pi: ExtensionAPI) {
   const tool: ToolDefinition<GlobSchema, GlobDetails, Record<string, never>> = {
     name: "glob",
     label: "glob",
     description: [
-      '- Fast file pattern matching tool that works with any codebase size',
+      "- Fast file pattern matching tool that works with any codebase size",
       '- Supports glob patterns like "**/*.js" or "src/**/*.ts"',
-      '- Returns matching file paths sorted by modification time',
-      '- Use this tool when you need to find files by name patterns',
-      '- When you are doing an open-ended search that may require multiple rounds of globbing and grepping, use the Task tool instead',
-      '- You have the capability to call multiple tools in a single response. It is always better to speculatively perform multiple searches as a batch that are potentially useful.'
+      "- Returns matching file paths sorted by modification time",
+      "- Use this tool when you need to find files by name patterns",
+      "- When you are doing an open-ended search that may require multiple rounds of globbing and grepping, use the Task tool instead",
+      "- You have the capability to call multiple tools in a single response. It is always better to speculatively perform multiple searches as a batch that are potentially useful.",
     ].join("\n"),
     promptSnippet: "Find files by glob pattern (respects .gitignore)",
     parameters: globSchema,
+
+    style: {
+      paddingX: 1,
+      paddingY: 0,
+      pendingBg: null,
+      successBg: null,
+      errorBg: null,
+    },
 
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       if (!params.pattern) {
@@ -173,7 +184,8 @@ export default function(pi: ExtensionAPI) {
     },
 
     renderCall(args, theme, context) {
-      const text = (context.lastComponent instanceof Text ? context.lastComponent : null) ?? new Text("", 0, 0)
+      const text =
+        (context.lastComponent instanceof Text ? context.lastComponent : null) ?? new Text("", 0, 0)
       let content = theme.fg("toolTitle", theme.bold("glob "))
       content += theme.fg("accent", args.pattern || "")
       if (args.path) {
@@ -184,30 +196,43 @@ export default function(pi: ExtensionAPI) {
     },
 
     renderResult(result, { expanded }, theme, context) {
-      const text = (context.lastComponent instanceof Text ? context.lastComponent : null) ?? new Text("", 0, 0)
+      const text =
+        (context.lastComponent instanceof Text ? context.lastComponent : null) ?? new Text("", 0, 0)
 
-      if (result.details.count === 0) {
-        text.setText(theme.fg("dim", "No files found"))
+      if (context.isError) {
+        const msg = result.content.find((c: any) => c.type === "text")?.text || "Search failed"
+        text.setText(theme.fg("error", msg))
         return text
       }
 
-      let content = theme.fg("success", `${result.details.count} files`)
+      if (!expanded) {
+        if (result.details.count === 0) {
+          text.setText(theme.fg("muted", "No files found"))
+        } else {
+          let content = theme.fg("muted", `${result.details.count} files`)
+          if (result.details.limitReached) {
+            content += theme.fg("warning", " (limit reached)")
+          }
+          text.setText(content)
+        }
+        return text
+      }
+
+      let content = theme.fg("muted", `${result.details.count} files`)
       if (result.details.limitReached) {
         content += theme.fg("warning", " (limit reached)")
       }
 
-      if (expanded) {
-        let output = ""
-        for (const block of result.content) {
-          if (block.type === "text") output += block.text
-        }
-        const lines = output.split("\n").slice(0, 25)
-        for (const line of lines) {
-          content += `\n${theme.fg("toolOutput", line)}`
-        }
-        if (output.split("\n").length > 25) {
-          content += `\n${theme.fg("muted", "...")}`
-        }
+      let output = ""
+      for (const block of result.content) {
+        if (block.type === "text") output += block.text
+      }
+      const lines = output.split("\n").slice(0, 25)
+      for (const line of lines) {
+        content += `\n${theme.fg("toolOutput", line)}`
+      }
+      if (output.split("\n").length > 25) {
+        content += `\n${theme.fg("muted", "...")}`
       }
 
       text.setText(content)

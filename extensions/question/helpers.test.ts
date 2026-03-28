@@ -1,11 +1,11 @@
-import { describe, test, expect } from "vitest";
+import { describe, test, expect } from "vitest"
 import {
   normalizeAnswerSelection,
   normalizeQuestions,
   replaceAnswerSelection,
   summarizeAnswers,
-} from "./helpers.ts";
-import { OTHER_OPTION_LABEL } from "./types.ts";
+} from "./helpers.ts"
+import { OTHER_OPTION_LABEL } from "./types.ts"
 
 describe("normalizeQuestions", () => {
   test("trims question fields and defaults multiple to false", () => {
@@ -21,37 +21,37 @@ describe("normalizeQuestions", () => {
         multiple: true,
         options: [{ label: "Docs" }],
       },
-    ]);
+    ])
 
-    const first = questions[0]!;
-    const second = questions[1]!;
+    const first = questions[0]!
+    const second = questions[1]!
 
-    expect(first.question).toBe("Which targets?");
-    expect(first.header).toBe("Targets");
-    expect(first.multiple).toBe(false);
-    expect(first.options).toEqual([{ label: "iOS", description: "Mobile" }]);
-    expect(second.multiple).toBe(true);
-  });
+    expect(first.question).toBe("Which targets?")
+    expect(first.header).toBe("Targets")
+    expect(first.multiple).toBe(false)
+    expect(first.options).toEqual([{ label: "iOS", description: "Mobile" }])
+    expect(second.multiple).toBe(true)
+  })
 
   test("strips undefined description to undefined", () => {
-    const q = normalizeQuestions([{ question: "Q", header: "H", options: [{ label: "L" }] }])[0]!;
-    expect(q.options).toEqual([{ label: "L", description: undefined }]);
-  });
+    const q = normalizeQuestions([{ question: "Q", header: "H", options: [{ label: "L" }] }])[0]!
+    expect(q.options).toEqual([{ label: "L", description: undefined }])
+  })
 
   test("handles empty options array", () => {
-    const q = normalizeQuestions([{ question: "Q", header: "H", options: [] }])[0]!;
-    expect(q.options).toEqual([]);
-  });
-});
+    const q = normalizeQuestions([{ question: "Q", header: "H", options: [] }])[0]!
+    expect(q.options).toEqual([])
+  })
+})
 
 describe("normalizeAnswerSelection", () => {
   test("removes sentinel and appends custom value", () => {
     expect(normalizeAnswerSelection(["A", OTHER_OPTION_LABEL], "Custom", ["A", "B"])).toEqual([
       "A",
       "Custom",
-    ]);
-    expect(normalizeAnswerSelection([OTHER_OPTION_LABEL], "  ", ["A", "B"])).toEqual([]);
-  });
+    ])
+    expect(normalizeAnswerSelection([OTHER_OPTION_LABEL], "  ", ["A", "B"])).toEqual([])
+  })
 
   test("drops stale incremental _other_ edits", () => {
     expect(
@@ -60,38 +60,38 @@ describe("normalizeAnswerSelection", () => {
         "tech equipment",
         ["TypeScript", "Rust"],
       ),
-    ).toEqual(["TypeScript", "tech equipment"]);
-  });
+    ).toEqual(["TypeScript", "tech equipment"])
+  })
 
   test("returns empty for empty values and empty custom", () => {
-    expect(normalizeAnswerSelection([], "", ["A", "B"])).toEqual([]);
-  });
+    expect(normalizeAnswerSelection([], "", ["A", "B"])).toEqual([])
+  })
 
   test("returns empty for only sentinel and empty custom", () => {
-    expect(normalizeAnswerSelection([OTHER_OPTION_LABEL], "", ["A", "B"])).toEqual([]);
-  });
+    expect(normalizeAnswerSelection([OTHER_OPTION_LABEL], "", ["A", "B"])).toEqual([])
+  })
 
   test("deduplicates custom matching a predefined option", () => {
     expect(
       normalizeAnswerSelection(["Alpha", OTHER_OPTION_LABEL], "Alpha", ["Alpha", "Beta"]),
-    ).toEqual(["Alpha"]);
-  });
+    ).toEqual(["Alpha"])
+  })
 
   test("custom only (no predefined selected)", () => {
     expect(normalizeAnswerSelection([OTHER_OPTION_LABEL], "my answer", ["X", "Y"])).toEqual([
       "my answer",
-    ]);
-  });
+    ])
+  })
 
   test("ignores values not in predefined options", () => {
-    expect(normalizeAnswerSelection(["Ghost", "A"], "", ["A", "B"])).toEqual(["A"]);
-  });
+    expect(normalizeAnswerSelection(["Ghost", "A"], "", ["A", "B"])).toEqual(["A"])
+  })
 
   test("with empty predefined options list", () => {
-    expect(normalizeAnswerSelection(["A", OTHER_OPTION_LABEL], "custom", [])).toEqual(["custom"]);
-    expect(normalizeAnswerSelection(["A"], "", [])).toEqual([]);
-  });
-});
+    expect(normalizeAnswerSelection(["A", OTHER_OPTION_LABEL], "custom", [])).toEqual(["custom"])
+    expect(normalizeAnswerSelection(["A"], "", [])).toEqual([])
+  })
+})
 
 describe("summarizeAnswers", () => {
   test("formats unanswered and selected values", () => {
@@ -101,78 +101,72 @@ describe("summarizeAnswers", () => {
         { question: "Need docs?", header: "Docs", options: [], multiple: true },
       ],
       [["iOS"], ["API", "CLI"]],
-    );
+    )
 
-    expect(result).toBe('"Which targets?"="iOS", "Need docs?"="API, CLI"');
-  });
+    expect(result).toBe('"Which targets?"="iOS", "Need docs?"="API, CLI"')
+  })
 
   test("shows Unanswered for missing answer entries", () => {
-    const result = summarizeAnswers(
-      [{ question: "Q1", header: "H1", options: [] }],
-      [],
-    );
-    expect(result).toBe('"Q1"="Unanswered"');
-  });
+    const result = summarizeAnswers([{ question: "Q1", header: "H1", options: [] }], [])
+    expect(result).toBe('"Q1"="Unanswered"')
+  })
 
   test("shows Unanswered for empty answer array", () => {
-    const result = summarizeAnswers(
-      [{ question: "Q1", header: "H1", options: [] }],
-      [[]],
-    );
-    expect(result).toBe('"Q1"="Unanswered"');
-  });
+    const result = summarizeAnswers([{ question: "Q1", header: "H1", options: [] }], [[]])
+    expect(result).toBe('"Q1"="Unanswered"')
+  })
 
   test("handles single answer", () => {
     const result = summarizeAnswers(
       [{ question: "Color?", header: "Color", options: [] }],
       [["Blue"]],
-    );
-    expect(result).toBe('"Color?"="Blue"');
-  });
+    )
+    expect(result).toBe('"Color?"="Blue"')
+  })
 
   test("escapes quotes and newlines", () => {
     const result = summarizeAnswers(
       [{ question: 'Say "hi"?', header: "Prompt", options: [] }],
       [['line "one"\nline two']],
-    );
-    expect(result).toBe('"Say \\"hi\\"?"="line \\"one\\"\\nline two"');
-  });
-});
+    )
+    expect(result).toBe('"Say \\"hi\\"?"="line \\"one\\"\\nline two"')
+  })
+})
 
 describe("replaceAnswerSelection", () => {
   test("mutates the same Set instance in place", () => {
-    const selected = new Set<string>();
-    const reference = selected;
+    const selected = new Set<string>()
+    const reference = selected
 
-    replaceAnswerSelection(selected, [], "", ["Alpha", "Beta"]);
-    selected.add("Alpha");
-    replaceAnswerSelection(selected, Array.from(selected), "", ["Alpha", "Beta"]);
+    replaceAnswerSelection(selected, [], "", ["Alpha", "Beta"])
+    selected.add("Alpha")
+    replaceAnswerSelection(selected, Array.from(selected), "", ["Alpha", "Beta"])
 
-    expect(selected).toBe(reference);
-    expect(Array.from(selected)).toEqual(["Alpha"]);
-  });
+    expect(selected).toBe(reference)
+    expect(Array.from(selected)).toEqual(["Alpha"])
+  })
 
   test("keeps custom sentinel while returning final custom text", () => {
-    const selected = new Set<string>([OTHER_OPTION_LABEL]);
+    const selected = new Set<string>([OTHER_OPTION_LABEL])
 
-    replaceAnswerSelection(selected, Array.from(selected), "hello", ["Alpha", "Beta"]);
+    replaceAnswerSelection(selected, Array.from(selected), "hello", ["Alpha", "Beta"])
 
-    expect(Array.from(selected)).toEqual(["hello", OTHER_OPTION_LABEL]);
-  });
+    expect(Array.from(selected)).toEqual(["hello", OTHER_OPTION_LABEL])
+  })
 
   test("clears stale values when custom is removed", () => {
-    const selected = new Set<string>(["old-custom", OTHER_OPTION_LABEL]);
+    const selected = new Set<string>(["old-custom", OTHER_OPTION_LABEL])
 
-    replaceAnswerSelection(selected, selected, "", ["Alpha", "Beta"]);
+    replaceAnswerSelection(selected, selected, "", ["Alpha", "Beta"])
 
-    expect(Array.from(selected)).toEqual([]);
-  });
+    expect(Array.from(selected)).toEqual([])
+  })
 
   test("preserves predefined + custom together", () => {
-    const selected = new Set<string>(["Alpha", OTHER_OPTION_LABEL]);
+    const selected = new Set<string>(["Alpha", OTHER_OPTION_LABEL])
 
-    replaceAnswerSelection(selected, selected, "extra", ["Alpha", "Beta"]);
+    replaceAnswerSelection(selected, selected, "extra", ["Alpha", "Beta"])
 
-    expect(Array.from(selected)).toEqual(["Alpha", "extra", OTHER_OPTION_LABEL]);
-  });
-});
+    expect(Array.from(selected)).toEqual(["Alpha", "extra", OTHER_OPTION_LABEL])
+  })
+})

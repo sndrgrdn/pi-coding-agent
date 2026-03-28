@@ -33,13 +33,13 @@ LSP servers are defined as named exports in `config.ts`. Export order determines
 
 ### Built-in servers
 
-| Name | Command | Extensions | Root markers |
-|------|---------|------------|-------------|
-| `oxfmt` | `oxfmt --lsp` | `.ts` `.tsx` `.js` `.jsx` | `package.json` |
-| `oxlint` | `oxlint --lsp` | `.ts` `.tsx` `.js` `.jsx` | `package.json` |
+| Name       | Command                              | Extensions                | Root markers                   |
+| ---------- | ------------------------------------ | ------------------------- | ------------------------------ |
+| `oxfmt`    | `oxfmt --lsp`                        | `.ts` `.tsx` `.js` `.jsx` | `package.json`                 |
+| `oxlint`   | `oxlint --lsp`                       | `.ts` `.tsx` `.js` `.jsx` | `package.json`                 |
 | `tsserver` | `typescript-language-server --stdio` | `.ts` `.tsx` `.js` `.jsx` | `tsconfig.json` `package.json` |
-| `rubocop` | `bundle exec rubocop --lsp` | `.rb` | `Gemfile` |
-| `herb` | `herb-language-server --stdio` | `.erb` | `Gemfile` |
+| `rubocop`  | `bundle exec rubocop --lsp`          | `.rb`                     | `Gemfile`                      |
+| `herb`     | `herb-language-server --stdio`       | `.erb`                    | `Gemfile`                      |
 
 ### Adding a new server
 
@@ -52,15 +52,15 @@ export const python: ServerConfig = {
   command: "pylsp",
   extensions: [".py"],
   rootMarkers: ["pyproject.toml", "setup.py"],
-};
+}
 ```
 
 ### ServerConfig fields
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `command` | `string` | Full command string, split on spaces when spawning (e.g. `"pylsp"`, `"typescript-language-server --stdio"`) |
-| `extensions` | `string[]` | File extensions this server handles, including the dot |
+| Field         | Type       | Description                                                                                                                  |
+| ------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `command`     | `string`   | Full command string, split on spaces when spawning (e.g. `"pylsp"`, `"typescript-language-server --stdio"`)                  |
+| `extensions`  | `string[]` | File extensions this server handles, including the dot                                                                       |
 | `rootMarkers` | `string[]` | Files that identify a project root (e.g. `["Gemfile"]`). Walks up from the file to find the nearest match. Falls back to cwd |
 
 ### Capability detection
@@ -74,16 +74,16 @@ Formatting and diagnostics are auto-detected from the LSP server — no config f
 
 The LSP `languageId` is derived automatically from a built-in map. No per-server configuration needed:
 
-| Extension | languageId |
-|-----------|-----------|
-| `.ts` | `typescript` |
-| `.tsx` | `typescriptreact` |
-| `.mts` `.cts` | `typescript` |
-| `.js` | `javascript` |
-| `.jsx` | `javascriptreact` |
-| `.mjs` `.cjs` | `javascript` |
-| `.rb` | `ruby` |
-| `.erb` | `erb` |
+| Extension     | languageId                                |
+| ------------- | ----------------------------------------- |
+| `.ts`         | `typescript`                              |
+| `.tsx`        | `typescriptreact`                         |
+| `.mts` `.cts` | `typescript`                              |
+| `.js`         | `javascript`                              |
+| `.jsx`        | `javascriptreact`                         |
+| `.mjs` `.cjs` | `javascript`                              |
+| `.rb`         | `ruby`                                    |
+| `.erb`        | `erb`                                     |
 | anything else | extension without dot (e.g. `.py` → `py`) |
 
 ### Compound extensions
@@ -114,13 +114,13 @@ Shows LSP extension status: configured servers, running instances, and recent de
 
 ## Key files
 
-| File | Purpose |
-|------|---------|
-| `config.ts` | Server definitions, file→server matching, languageId resolution, project root detection |
-| `client.ts` | `LspClient` class: start, format, diagnostics, shutdown, capability detection, command resolution |
-| `index.ts` | Extension entry: event hooks, `diagnostics` tool, `/lsp` command |
-| `config.test.ts` | Tests for config, matching, languageId, project root |
-| `client.test.ts` | Tests for LspClient lifecycle and capabilities |
+| File             | Purpose                                                                                           |
+| ---------------- | ------------------------------------------------------------------------------------------------- |
+| `config.ts`      | Server definitions, file→server matching, languageId resolution, project root detection           |
+| `client.ts`      | `LspClient` class: start, format, diagnostics, shutdown, capability detection, command resolution |
+| `index.ts`       | Extension entry: event hooks, `diagnostics` tool, `/lsp` command                                  |
+| `config.test.ts` | Tests for config, matching, languageId, project root                                              |
+| `client.test.ts` | Tests for LspClient lifecycle and capabilities                                                    |
 
 ## Common modifications
 

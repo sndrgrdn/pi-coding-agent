@@ -17,13 +17,7 @@ import { Type } from "@sinclair/typebox"
 import { spawn } from "child_process"
 import { createInterface } from "node:readline"
 import path from "path"
-import {
-  buildGrepArgs,
-  parseGrepLine,
-  formatGrepOutput,
-  MATCH_LIMIT,
-  type Match,
-} from "./grep.ts"
+import { buildGrepArgs, parseGrepLine, formatGrepOutput, MATCH_LIMIT, type Match } from "./grep.ts"
 
 const grepSchema = Type.Object({
   pattern: Type.String({
@@ -53,26 +47,36 @@ async function findRg(): Promise<string> {
   try {
     return execSync("which rg", { encoding: "utf-8" }).trim()
   } catch {
-    throw new Error("ripgrep (rg) not found. Install it: https://github.com/BurntSushi/ripgrep#installation")
+    throw new Error(
+      "ripgrep (rg) not found. Install it: https://github.com/BurntSushi/ripgrep#installation",
+    )
   }
 }
 
-export default function(pi: ExtensionAPI) {
+export default function (pi: ExtensionAPI) {
   const tool: ToolDefinition<GrepSchema, GrepDetails, Record<string, never>> = {
     name: "grep",
     label: "grep",
     description: [
-      '- Fast content search tool that works with any codebase size',
-      '- Searches file contents using regular expressions',
+      "- Fast content search tool that works with any codebase size",
+      "- Searches file contents using regular expressions",
       '- Supports full regex syntax (eg. "log.*Error", "function\s+\w+", etc.)',
       '- Filter files by pattern with the include parameter (eg. "*.js", "*.{ts,tsx}")',
-      '- Returns file paths and line numbers with at least one match sorted by modification time',
-      '- Use this tool when you need to find files containing specific patterns',
-      '- If you need to identify/count the number of matches within files, use the Bash tool with `rg` (ripgrep) directly. Do NOT use `grep`.',
-      '- When you are doing an open-ended search that may require multiple rounds of globbing and grepping, use the Task tool instead'
+      "- Returns file paths and line numbers with at least one match sorted by modification time",
+      "- Use this tool when you need to find files containing specific patterns",
+      "- If you need to identify/count the number of matches within files, use the Bash tool with `rg` (ripgrep) directly. Do NOT use `grep`.",
+      "- When you are doing an open-ended search that may require multiple rounds of globbing and grepping, use the Task tool instead",
     ].join("\n"),
     promptSnippet: "Search file contents for patterns, grouped by file (respects .gitignore)",
     parameters: grepSchema,
+
+    style: {
+      paddingX: 1,
+      paddingY: 0,
+      pendingBg: null,
+      successBg: null,
+      errorBg: null,
+    },
 
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       if (!params.pattern) {
@@ -199,7 +203,8 @@ export default function(pi: ExtensionAPI) {
     },
 
     renderCall(args, theme, context) {
-      const text = (context.lastComponent instanceof Text ? context.lastComponent : null) ?? new Text("", 0, 0)
+      const text =
+        (context.lastComponent instanceof Text ? context.lastComponent : null) ?? new Text("", 0, 0)
       let content = theme.fg("toolTitle", theme.bold("grep "))
       content += theme.fg("accent", `/${args.pattern || ""}/`)
       if (args.path) {
@@ -213,30 +218,43 @@ export default function(pi: ExtensionAPI) {
     },
 
     renderResult(result, { expanded }, theme, context) {
-      const text = (context.lastComponent instanceof Text ? context.lastComponent : null) ?? new Text("", 0, 0)
+      const text =
+        (context.lastComponent instanceof Text ? context.lastComponent : null) ?? new Text("", 0, 0)
 
-      if (result.details.matches === 0) {
-        text.setText(theme.fg("dim", "No matches found"))
+      if (context.isError) {
+        const msg = result.content.find((c: any) => c.type === "text")?.text || "Search failed"
+        text.setText(theme.fg("error", msg))
         return text
       }
 
-      let content = theme.fg("success", `${result.details.matches} matches`)
+      if (!expanded) {
+        if (result.details.matches === 0) {
+          text.setText(theme.fg("muted", "No matches found"))
+        } else {
+          let content = theme.fg("muted", `${result.details.matches} matches`)
+          if (result.details.limitReached) {
+            content += theme.fg("warning", " (limit reached)")
+          }
+          text.setText(content)
+        }
+        return text
+      }
+
+      let content = theme.fg("muted", `${result.details.matches} matches`)
       if (result.details.limitReached) {
         content += theme.fg("warning", " (limit reached)")
       }
 
-      if (expanded) {
-        let output = ""
-        for (const block of result.content) {
-          if (block.type === "text") output += block.text
-        }
-        const lines = output.split("\n").slice(0, 30)
-        for (const line of lines) {
-          content += `\n${theme.fg("toolOutput", line)}`
-        }
-        if (output.split("\n").length > 30) {
-          content += `\n${theme.fg("muted", "...")}`
-        }
+      let output = ""
+      for (const block of result.content) {
+        if (block.type === "text") output += block.text
+      }
+      const lines = output.split("\n").slice(0, 30)
+      for (const line of lines) {
+        content += `\n${theme.fg("toolOutput", line)}`
+      }
+      if (output.split("\n").length > 30) {
+        content += `\n${theme.fg("muted", "...")}`
       }
 
       text.setText(content)

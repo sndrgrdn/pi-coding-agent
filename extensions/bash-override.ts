@@ -9,9 +9,9 @@ import {
   type ExtensionAPI,
   createBashToolDefinition,
   createLocalBashOperations,
-} from "@mariozechner/pi-coding-agent";
-import { Text } from "@mariozechner/pi-tui";
-import { Type } from "@sinclair/typebox";
+} from "@mariozechner/pi-coding-agent"
+import { Text } from "@mariozechner/pi-tui"
+import { Type } from "@sinclair/typebox"
 
 const extendedBashSchema = Type.Object({
   command: Type.String({ description: "The command to execute" }),
@@ -26,7 +26,7 @@ const extendedBashSchema = Type.Object({
     description:
       "Clear, concise description of what this command does in 5-10 words. Examples:\nInput: ls\nOutput: Lists files in current directory\n\nInput: git status\nOutput: Shows working tree status\n\nInput: npm install\nOutput: Installs package dependencies\n\nInput: mkdir foo\nOutput: Creates directory 'foo'",
   }),
-});
+})
 
 // Full tool description ported from opencode bash.txt, adapted for pi.
 const DESCRIPTION = `Executes a given bash command in a persistent shell session with optional timeout, ensuring proper handling and security measures.
@@ -76,10 +76,10 @@ Usage notes:
     <bad-example>
     cd /foo/bar && pytest tests
     </bad-example>
-`;
+`
 
 export default function (pi: ExtensionAPI) {
-  const ops = createLocalBashOperations();
+  const ops = createLocalBashOperations()
 
   pi.registerTool({
     name: "bash",
@@ -89,41 +89,41 @@ export default function (pi: ExtensionAPI) {
     parameters: extendedBashSchema,
 
     async execute(toolCallId, params, signal, onUpdate, ctx) {
-      const effectiveCwd = params.workdir || ctx.cwd;
-      const bashDef = createBashToolDefinition(effectiveCwd, { operations: ops });
+      const effectiveCwd = params.workdir || ctx.cwd
+      const bashDef = createBashToolDefinition(effectiveCwd, { operations: ops })
       return bashDef.execute(
         toolCallId,
         { command: params.command, timeout: params.timeout },
         signal,
         onUpdate,
         ctx,
-      );
+      )
     },
 
     renderCall(args: any, theme: any, context: any) {
-      const state = context.state;
+      const state = context.state
       if (context.executionStarted && state.startedAt === undefined) {
-        state.startedAt = Date.now();
-        state.endedAt = undefined;
+        state.startedAt = Date.now()
+        state.endedAt = undefined
       }
 
-      const text = context.lastComponent ?? new Text("", 0, 0);
-      const command = args?.command;
-      const commandDisplay = command ? command : theme.fg("toolOutput", "...");
+      const text = context.lastComponent ?? new Text("", 0, 0)
+      const command = args?.command
+      const commandDisplay = command ? command : theme.fg("toolOutput", "...")
 
-      let line = theme.fg("toolTitle", theme.bold(`$ ${commandDisplay}`));
-      if (args?.timeout) line += theme.fg("muted", ` (timeout ${args.timeout}s)`);
-      if (args?.workdir) line += theme.fg("muted", ` in ${args.workdir}`);
+      let line = theme.fg("toolTitle", theme.bold(`$ ${commandDisplay}`))
+      if (args?.timeout) line += theme.fg("muted", ` (timeout ${args.timeout}s)`)
+      if (args?.workdir) line += theme.fg("muted", ` in ${args.workdir}`)
 
       if (args?.description) {
-        line = theme.fg("muted", `# ${args.description}`) + "\n" + line;
+        line = theme.fg("muted", `# ${args.description}`) + "\n" + line
       }
 
-      text.setText(line);
-      return text;
+      text.setText(line)
+      return text
     },
 
     // renderResult omitted → falls back to built-in bash rendering
     // (streaming output, truncation warnings, timing display)
-  });
+  })
 }

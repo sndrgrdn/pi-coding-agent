@@ -66,21 +66,21 @@ The extension has an internal settings shape:
 ```ts
 {
   fetch: {
-    defaultFormat: "markdown" | "text" | "html";
-    timeoutSeconds: number;
-    maxResponseBytes: number;
-    blockPrivateHosts: boolean;
-    maxRedirects: number;
-    fallbackUserAgent: string;
-  };
+    defaultFormat: "markdown" | "text" | "html"
+    timeoutSeconds: number
+    maxResponseBytes: number
+    blockPrivateHosts: boolean
+    maxRedirects: number
+    fallbackUserAgent: string
+  }
   search: {
-    enabled: boolean;
-    provider: "exa";
-    endpoint: string;
-    timeoutSeconds: number;
-    defaultMaxResults: number;
-    defaultDepth: "auto" | "fast" | "deep";
-  };
+    enabled: boolean
+    provider: "exa"
+    endpoint: string
+    timeoutSeconds: number
+    defaultMaxResults: number
+    defaultDepth: "auto" | "fast" | "deep"
+  }
 }
 ```
 

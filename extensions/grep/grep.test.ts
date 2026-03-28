@@ -80,14 +80,7 @@ describe("formatGrepOutput", () => {
     const output = formatGrepOutput(matches, "/project", false)
     const lines = output.split("\n")
 
-    expect(lines).toEqual([
-      "src/a.ts:",
-      "  1: hello",
-      "  5: world",
-      "",
-      "src/b.ts:",
-      "  3: foo",
-    ])
+    expect(lines).toEqual(["src/a.ts:", "  1: hello", "  5: world", "", "src/b.ts:", "  3: foo"])
   })
 
   test("appends limit notice when limit reached", () => {

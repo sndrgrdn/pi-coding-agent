@@ -11,7 +11,14 @@ export interface Match {
 
 /** Build ripgrep arguments for content search. */
 export function buildGrepArgs(pattern: string, searchPath: string, include?: string): string[] {
-  const args = ["-nH", "--hidden", "--no-messages", "--field-match-separator=|", "--regexp", pattern]
+  const args = [
+    "-nH",
+    "--hidden",
+    "--no-messages",
+    "--field-match-separator=|",
+    "--regexp",
+    pattern,
+  ]
   if (include) {
     args.push("--glob", include)
   }

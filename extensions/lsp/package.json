@@ -9,7 +9,9 @@
     "vscode-languageserver-protocol": "^3.17.5"
   },
   "pi": {
-    "extensions": ["./index.ts"]
+    "extensions": [
+      "./index.ts"
+    ]
   },
   "devDependencies": {
     "vitest": "^4.1.1"
