@@ -4,34 +4,13 @@
 
 import * as os from "node:os";
 import { Text } from "@mariozechner/pi-tui";
-import type { RunResult, UsageStats, DisplayItem } from "./runner.js";
+import type { RunResult, DisplayItem } from "./runner.js";
 
 const COLLAPSED_ITEM_COUNT = 5;
 
 function formatElapsedSeconds(secs: number): string {
   if (secs < 60) return `${secs.toFixed(1)}s`;
   return `${Math.floor(secs / 60)}m${Math.round(secs % 60)}s`;
-}
-
-function formatTokens(count: number): string {
-  if (count < 1000) return count.toString();
-  if (count < 10000) return `${(count / 1000).toFixed(1)}k`;
-  if (count < 1000000) return `${Math.round(count / 1000)}k`;
-  return `${(count / 1000000).toFixed(1)}M`;
-}
-
-export function formatUsage(usage: UsageStats, model?: string, thinking?: string): string {
-  const parts: string[] = [];
-  if (usage.turns) parts.push(`${usage.turns} turn${usage.turns > 1 ? "s" : ""}`);
-  if (usage.input) parts.push(`↑${formatTokens(usage.input)}`);
-  if (usage.output) parts.push(`↓${formatTokens(usage.output)}`);
-  if (usage.cacheRead) parts.push(`R${formatTokens(usage.cacheRead)}`);
-  if (usage.cacheWrite) parts.push(`W${formatTokens(usage.cacheWrite)}`);
-  if (usage.cost) parts.push(`$${usage.cost.toFixed(4)}`);
-  if (usage.contextTokens > 0) parts.push(`ctx:${formatTokens(usage.contextTokens)}`);
-  if (model) parts.push(model);
-  if (thinking && thinking !== "off") parts.push(thinking);
-  return parts.join(" ");
 }
 
 import { getThinkingColor } from "../../lib/theme-utils.js";
@@ -42,7 +21,7 @@ function shortenPath(p: string): string {
   return p.startsWith(home) ? `~${p.slice(home.length)}` : p;
 }
 
-export function formatToolCall(
+function formatToolCall(
   toolName: string,
   args: Record<string, unknown>,
   fg: (color: any, text: string) => string,

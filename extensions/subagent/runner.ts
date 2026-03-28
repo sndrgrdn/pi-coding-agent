@@ -11,7 +11,7 @@ import type { Message } from "@mariozechner/pi-ai";
 import { withFileMutationQueue } from "@mariozechner/pi-coding-agent";
 import type { AgentConfig } from "./agents.js";
 
-export interface UsageStats {
+interface UsageStats {
   input: number;
   output: number;
   cacheRead: number;
@@ -278,11 +278,11 @@ export async function runAgent(
     if (tmpPath)
       try {
         fs.unlinkSync(tmpPath);
-      } catch { }
+      } catch {}
     if (tmpDir)
       try {
         fs.rmdirSync(tmpDir);
-      } catch { }
+      } catch {}
   }
 }
 
