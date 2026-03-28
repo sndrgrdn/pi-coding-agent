@@ -144,8 +144,11 @@ export function renderResult(
     const elapsed =
       secs < 60 ? `${secs.toFixed(1)}s` : `${Math.floor(secs / 60)}m${Math.round(secs % 60)}s`;
     const model = result.model ? `${result.model} · ` : "";
-    const expandHint =
-      !options.expanded && displayItems.length > COLLAPSED_ITEM_COUNT ? " (ctrl+o to expand)" : "";
+    const expandHint = options.expanded
+      ? " (ctrl+o to collapse)"
+      : displayItems.length > COLLAPSED_ITEM_COUNT
+        ? " (ctrl+o to expand)"
+        : "";
     text += `\n\n${fg("dim", model + elapsed + expandHint)}`;
   }
   return new Text(text, 0, 0);
