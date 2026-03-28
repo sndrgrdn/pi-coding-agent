@@ -89,7 +89,8 @@ export function renderResult(
 
   // Footer
   if (result.startedAt) {
-    const elapsed = formatElapsedSeconds((Date.now() - result.startedAt) / 1000);
+    const secs = result.elapsed ?? (Date.now() - result.startedAt) / 1000;
+    const elapsed = formatElapsedSeconds(secs);
     const footerParts: string[] = [];
     if (result.model) {
       footerParts.push(fg("text", getModelName(result.model)));

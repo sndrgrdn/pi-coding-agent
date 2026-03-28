@@ -25,6 +25,7 @@ export interface RunResult {
   agent: string;
   task: string;
   startedAt: number;
+  elapsed?: number;
   exitCode: number;
   messages: Message[];
   stderr: string;
@@ -272,6 +273,7 @@ export async function runAgent(
     });
 
     result.exitCode = exitCode;
+    result.elapsed = (Date.now() - result.startedAt) / 1000;
     if (wasAborted) throw new Error("Subagent was aborted");
     return result;
   } finally {
