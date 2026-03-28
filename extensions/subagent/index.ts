@@ -72,7 +72,7 @@ export function buildTaskDescription(agents: { name: string; description?: strin
   ].join("\n");
 }
 
-export default function(pi: ExtensionAPI) {
+export default function (pi: ExtensionAPI) {
   const taskDescription = buildTaskDescription(discoverAgents(process.cwd()));
 
   pi.registerTool({
@@ -172,8 +172,7 @@ export default function(pi: ExtensionAPI) {
       }
 
       const displayItems = getDisplayItems(runResult.messages);
-      const finalOutput = getFinalOutput(runResult.messages);
-      return renderResult(runResult, displayItems, finalOutput, { expanded, isPartial }, theme);
+      return renderResult(runResult, displayItems, { expanded, isPartial }, theme);
     },
   });
 

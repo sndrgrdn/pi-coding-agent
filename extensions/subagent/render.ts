@@ -116,7 +116,6 @@ export interface RenderResultOptions {
 export function renderResult(
   result: RunResult | undefined,
   displayItems: DisplayItem[],
-  finalOutput: string,
   options: RenderResultOptions,
   theme: any,
 ): Text {
