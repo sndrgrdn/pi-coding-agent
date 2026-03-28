@@ -8,6 +8,11 @@ import type { RunResult, UsageStats, DisplayItem } from "./runner.js";
 
 const COLLAPSED_ITEM_COUNT = 5;
 
+function formatElapsedSeconds(secs: number): string {
+  if (secs < 60) return `${secs.toFixed(1)}s`;
+  return `${Math.floor(secs / 60)}m${Math.round(secs % 60)}s`;
+}
+
 function formatTokens(count: number): string {
   if (count < 1000) return count.toString();
   if (count < 10000) return `${(count / 1000).toFixed(1)}k`;
@@ -105,27 +110,23 @@ export function renderResult(
 
   // Footer
   if (result.startedAt) {
-    const secs = (Date.now() - result.startedAt) / 1000;
-    const elapsed =
-      secs < 60 ? `${secs.toFixed(1)}s` : `${Math.floor(secs / 60)}m${Math.round(secs % 60)}s`;
-    let info = "";
+    const elapsed = formatElapsedSeconds((Date.now() - result.startedAt) / 1000);
+    const footerParts: string[] = [];
     if (result.model) {
-      const name = getModelName(result.model);
-      info += fg("text", name);
+      footerParts.push(fg("text", getModelName(result.model)));
       if (result.thinking && result.thinking !== "off") {
-        const color = getThinkingColor(result.thinking);
-        info += ` ${fg(color, result.thinking)}`;
+        footerParts.push(` ${fg(getThinkingColor(result.thinking), result.thinking)}`);
       }
-      info += fg("dim", " · ");
+      footerParts.push(fg("dim", " · "));
     }
-    info += fg("text", elapsed);
-    let expand = "";
-    if (!options.expanded && displayItems.length > COLLAPSED_ITEM_COUNT) {
-      expand = " (ctrl+o to expand)";
-    } else if (options.expanded) {
-      expand = " (ctrl+o to collapse)";
-    }
-    text += `\n\n${info}${fg("dim", expand)}`;
+    footerParts.push(fg("text", elapsed));
+    const expandHint =
+      !options.expanded && displayItems.length > COLLAPSED_ITEM_COUNT
+        ? " (ctrl+o to expand)"
+        : options.expanded
+          ? " (ctrl+o to collapse)"
+          : "";
+    text += `\n\n${footerParts.join("")}${fg("dim", expandHint)}`;
   }
   return new Text(text, 0, 0);
 }
