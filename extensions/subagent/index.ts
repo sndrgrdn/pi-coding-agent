@@ -75,7 +75,7 @@ export function buildTaskDescription(agents: { name: string; description?: strin
   ].join("\n");
 }
 
-export default function (pi: ExtensionAPI) {
+export default function(pi: ExtensionAPI) {
   const taskDescription = buildTaskDescription(discoverAgents(process.cwd()));
 
   pi.registerTool({
@@ -95,6 +95,12 @@ export default function (pi: ExtensionAPI) {
       "The agent's result is not visible to the user — summarize the outcome for them.",
     ],
     parameters: SubagentParams,
+    style: {
+      paddingX: 0,
+      paddingY: 0,
+      pendingBg: (text: string) => text,
+      successBg: (text: string) => text,
+    },
 
     async execute(_toolCallId, params, signal, onUpdate, ctx) {
       const agent = findAgent(ctx.cwd, params.subagent_type);

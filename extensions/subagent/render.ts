@@ -112,9 +112,9 @@ function renderExpanded(result: RunResult, displayItems: DisplayItem[], theme: a
   const agentLabel = result.agent.charAt(0).toUpperCase() + result.agent.slice(1);
   const footerParts: string[] = [fg("text", agentLabel)];
   if (result.model) {
-    footerParts.push(fg("text", getModelName(result.model)));
+    footerParts.push(fg("muted", getModelName(result.model)));
   }
-  footerParts.push(fg("text", getElapsed(result)));
+  footerParts.push(fg("muted", getElapsed(result)));
 
   container.addChild(new Text(`\n${footerParts.join(fg("muted", " · "))}`, 0, 0));
 
