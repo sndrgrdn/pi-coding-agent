@@ -10,7 +10,7 @@ import { getModelName } from "../../lib/model-utils.js";
 
 function formatElapsedSeconds(secs: number): string {
   if (secs < 60) return `${secs.toFixed(1)}s`;
-  return `${Math.floor(secs / 60)}m${Math.round(secs % 60)}s`;
+  return `${Math.floor(secs / 60)}m ${Math.round(secs % 60)}s`;
 }
 
 function shortenPath(p: string): string {
@@ -24,13 +24,13 @@ function formatToolCall(
   fg: (color: any, text: string) => string,
 ): string {
   const entries = Object.entries(args).filter(([, v]) => v !== undefined);
-  if (entries.length === 0) return fg("dim", toolName);
+  if (entries.length === 0) return fg("muted", toolName);
 
   const parts = entries.map(([k, v]) => {
     const val = typeof v === "string" ? shortenPath(v) : JSON.stringify(v);
     return entries.length === 1 ? val : `${k}=${val}`;
   });
-  return fg("dim", `${toolName} ${parts.join(" ")}`);
+  return fg("muted", `${toolName} ${parts.join(" ")}`);
 }
 
 function getElapsed(result: RunResult): string {
@@ -67,23 +67,23 @@ function renderCollapsed(
     const lastToolCall = displayItems.toReversed().find((i) => i.type === "toolCall");
     if (lastToolCall && lastToolCall.type === "toolCall") {
       const call = formatToolCall(lastToolCall.name, lastToolCall.args, fg);
-      lines.push(`${fg("dim", "↳ ")}${call}${fg("dim", ` · ${elapsed}`)}`);
+      lines.push(`${fg("muted", "↳ ")}${call}`);
     } else {
-      lines.push(fg("dim", `↳ (running...) · ${elapsed}`));
+      lines.push(fg("muted", `↳ (running...)`));
     }
   } else if (isError && result.errorMessage) {
     // Error:
     // └ Error: something went wrong
-    lines.push(`${fg("dim", "└ ")}${fg("error", `Error: ${result.errorMessage}`)}`);
+    lines.push(`${fg("muted", "└ ")}${fg("error", `Error: ${result.errorMessage}`)}`);
   } else {
     // Completed:
     // └ 47 tool calls · 1m 54s
     const summary = toolCallCount > 0 ? `${toolCallCount} tool calls · ${elapsed}` : elapsed;
-    lines.push(`${fg("dim", "└ ")}${fg("dim", summary)}`);
+    lines.push(`${fg("muted", "└ ")}${fg("muted", summary)}`);
   }
 
   lines.push("");
-  lines.push(fg("dim", "ctrl+o view subagents"));
+  lines.push(fg("muted", "ctrl+o view subagents"));
 
   return new Text(lines.join("\n"), 0, 0);
 }
@@ -116,7 +116,7 @@ function renderExpanded(result: RunResult, displayItems: DisplayItem[], theme: a
   }
   footerParts.push(fg("text", getElapsed(result)));
 
-  container.addChild(new Text(`\n${footerParts.join(fg("dim", " · "))}`, 0, 0));
+  container.addChild(new Text(`\n${footerParts.join(fg("muted", " · "))}`, 0, 0));
 
   return container;
 }
@@ -128,7 +128,7 @@ export function renderResult(
   theme: any,
 ): Text | Container {
   if (!result) {
-    return new Text(theme.fg("dim", "(no output)"), 0, 0);
+    return new Text(theme.fg("muted", "(no output)"), 0, 0);
   }
 
   if (options.expanded) {
